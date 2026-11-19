@@ -202,7 +202,9 @@ export function ppeCheck(s: ElecState): { adequate: boolean; issues: string[]; b
   if (!worn.has('hardhat')) issues.push('No hard hat')
   if (!worn.has('glasses')) issues.push('No safety glasses')
   if (!worn.has('hearing')) issues.push('No hearing protection')
-  if (!worn.has('gloves00')) issues.push('No voltage-rated gloves (class 00 required for 480 V shock exposure)')
+  const glove = PPE_ITEMS.find((p) => p.slot === 'hands' && p.shockOk && worn.has(p.id))
+  if (!glove) issues.push('No voltage-rated gloves (class 00 or higher required for 480 V shock exposure)')
+  else if ((glove.maxUseAc ?? 0) < s.scenario.label.voltage) issues.push(`Class ${glove.gloveClass} gloves are rated ${glove.maxUseAc} V, below ${s.scenario.label.voltage} V`)
   if (!worn.has('boots')) issues.push('No leather footwear')
   return { adequate: issues.length === 0, issues, bodyRating: body }
 }
@@ -659,7 +661,7 @@ export function reduceElec(s: ElecState, a: Action): ElecState {
       if (a.on) {
         // one body garment and one glove type at a time
         if (item.slot === 'body' && item.id !== 'cotton') ppe = ppe.filter((p) => !['ar8', 'ar12', 'suit40'].includes(p))
-        if (item.slot === 'hands') ppe = ppe.filter((p) => !['gloves_leather', 'gloves00'].includes(p))
+        if (item.slot === 'hands') ppe = ppe.filter((p) => PPE_ITEMS.find((x) => x.id === p)?.slot !== 'hands')
         ppe = [...ppe, a.id]
       }
       const next = { ...s, ppe }
@@ -670,7 +672,9 @@ export function reduceElec(s: ElecState, a: Action): ElecState {
       const l = s.scenario.label
       const next: ElecState = { ...s, ppeConfirmed: { t: s.t, adequate: chk.adequate } }
       if (chk.adequate) {
-        return log(next, 'action', `Suited up against the label: ${chk.bodyRating} cal/cm² arc-rated clothing for ${l.incidentEnergy} cal/cm² at ${l.workingDistance} in, head and face protection, class ${l.gloveClass} gloves, hearing, eyes, leather footwear.`)
+        const glove = PPE_ITEMS.find((p) => p.slot === 'hands' && s.ppe.includes(p.id))
+        const over = glove && glove.gloveClass !== l.gloveClass ? ` (label calls for class ${l.gloveClass}; class ${glove.gloveClass} is over-rated but acceptable)` : ''
+        return log(next, 'action', `Suited up against the label: ${chk.bodyRating} cal/cm² arc-rated clothing for ${l.incidentEnergy} cal/cm² at ${l.workingDistance} in, head and face protection, class ${glove?.gloveClass ?? l.gloveClass} gloves with leather protectors${over}, hearing, eyes, leather footwear.`)
       }
       return log(next, 'warn', `PPE confirmed but does not meet the label: ${chk.issues.join('; ')}.`)
     }

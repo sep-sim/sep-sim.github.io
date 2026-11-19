@@ -75,6 +75,14 @@ describe('PPE', () => {
     expect(ppeCheck(suit).adequate).toBe(true)
     const leather = run(twelve, { type: 'ppe', id: 'gloves_leather', on: true })
     expect(ppeCheck(leather).adequate).toBe(false)
+    expect(leather.ppe).not.toContain('gloves00')
+    // any insulating class at or above the label's class passes for shock; only one pair at a time
+    const class0 = run(twelve, { type: 'ppe', id: 'gloves0', on: true })
+    expect(ppeCheck(class0).adequate).toBe(true)
+    expect(class0.ppe.filter((p) => p.startsWith('gloves'))).toEqual(['gloves0'])
+    const class4 = run(twelve, { type: 'ppe', id: 'gloves4', on: true }, { type: 'ppeConfirm' })
+    expect(ppeCheck(class4).adequate).toBe(true)
+    expect(class4.log.at(-1)?.text).toContain('over-rated')
   })
 
   it('confirming PPE against the label is logged and scored', () => {

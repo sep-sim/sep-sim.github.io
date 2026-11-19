@@ -1,4 +1,5 @@
 import type { PpeId } from '../types'
+import { PPE_ITEMS } from '../types'
 
 /** Small picture of each item on the rack, in the chart's palette. */
 export function GearIcon({ id }: { id: PpeId }) {
@@ -21,8 +22,11 @@ export function GearIcon({ id }: { id: PpeId }) {
       return <svg viewBox="0 0 40 40"><path d="M10 6 Q20 2 30 6 L30 14 Q20 10 10 14 Z" fill="#1b3261" /><path d="M8 14 L8 28 Q20 36 32 28 L32 14 Z" fill="#8fd17a" opacity="0.6" stroke="#2f5a26" /><path d="M11 16 L12 26" stroke="#fff" strokeWidth="1.5" /></svg>
     case 'gloves_leather':
       return <svg viewBox="0 0 40 40"><path d="M12 10 L28 10 L28 20 L30 22 L30 34 L12 34 L10 22 Z" fill="#c89a6a" stroke="#6b4a2a" /><path d="M10 10 L30 10 L30 14 L10 14 Z" fill="#6b4a2a" /></svg>
-    case 'gloves00':
-      return <svg viewBox="0 0 40 40"><path d="M12 14 L28 14 L28 22 L31 24 L30 36 L12 36 L9 24 Z" fill="#555a62" stroke="#1d2024" /><path d="M9 6 L31 6 L31 14 L9 14 Z" fill="#9c2a38" stroke="#5e1420" /><text x="20" y="31" textAnchor="middle" fontSize="6" fill="#fff" fontWeight="700">00</text></svg>
+    case 'gloves00': case 'gloves0': case 'gloves1': case 'gloves2': case 'gloves3': case 'gloves4': {
+      const item = PPE_ITEMS.find((p) => p.id === id)!
+      const dark = item.gloveClass === '1' || item.gloveClass === '00'
+      return <svg viewBox="0 0 40 40"><path d="M12 14 L28 14 L28 22 L31 24 L30 36 L12 36 L9 24 Z" fill="#555a62" stroke="#1d2024" /><path d="M9 6 L31 6 L31 14 L9 14 Z" fill={item.cuff} stroke="#333" /><text x="20" y="12" textAnchor="middle" fontSize="6" fill={dark ? '#222' : '#fff'} fontWeight="700">{item.gloveClass}</text></svg>
+    }
     case 'boots':
       return <svg viewBox="0 0 40 40"><path d="M10 6 L24 6 L24 22 L34 26 L34 34 L8 34 L8 26 Z" fill="#2a2d33" stroke="#0f1114" /><path d="M8 32 L34 32 L34 36 L8 36 Z" fill="#050505" /><path d="M13 10 L21 12 M13 14 L21 16 M13 18 L21 20" stroke="#9aa0a8" strokeWidth="1.2" /></svg>
   }

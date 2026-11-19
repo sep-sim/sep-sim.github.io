@@ -1,4 +1,5 @@
 import type { PpeId } from '../types'
+import { PPE_ITEMS } from '../types'
 
 /**
  * The technician, drawn in the style of an arc flash PPE chart: front-on, arms slightly out, navy arc-rated kit,
@@ -13,7 +14,10 @@ export function Worker({ ppe, adequate }: { ppe: PpeId[]; adequate: boolean }) {
   const shirt = { cotton: 'url(#wCotton)', ar8: 'url(#wNavy)', ar12: 'url(#wNavy)', suit40: 'url(#wNavy)' }[body]
   const pants = { cotton: 'url(#wDenim)', ar8: 'url(#wNavyDark)', ar12: 'url(#wNavy)', suit40: 'url(#wNavyDark)' }[body]
   const skin = 'url(#wSkin)'
-  const hand = on('gloves00') ? 'url(#wGloveGrey)' : on('gloves_leather') ? 'url(#wLeather)' : skin
+  const rubber = PPE_ITEMS.find((p) => p.slot === 'hands' && p.shockOk && on(p.id))
+  const hand = rubber ? 'url(#wGloveGrey)' : on('gloves_leather') ? 'url(#wLeather)' : skin
+  const cuff = rubber?.cuff ?? '#9c2a38'
+  const cuffText = rubber && (rubber.gloveClass === '1' || rubber.gloveClass === '00') ? '#222' : '#fff'
 
   return (
     <svg viewBox="0 0 300 640" className={`worker ${adequate ? 'ok' : ''}`}>
@@ -115,14 +119,21 @@ export function Worker({ ppe, adequate }: { ppe: PpeId[]; adequate: boolean }) {
       {(body === 'ar12' || body === 'suit40') && <g><rect x="50" y="252" width="34" height="11" fill="url(#wReflect)" transform="rotate(10 67 257)" /><rect x="216" y="252" width="34" height="11" fill="url(#wReflect)" transform="rotate(-10 233 257)" /></g>}
 
       {/* glove cuffs then hands */}
-      {on('gloves00') && <g><path d="M36 300 Q58 292 82 300 L84 330 Q58 338 34 330 Z" fill="url(#wCuff)" /><path d="M218 300 Q242 292 264 300 L266 330 Q242 338 216 330 Z" fill="url(#wCuff)" /></g>}
+      {rubber && (
+        <g>
+          <path d="M36 300 Q58 292 82 300 L84 330 Q58 338 34 330 Z" fill={cuff} stroke="#000" strokeOpacity="0.35" />
+          <path d="M218 300 Q242 292 264 300 L266 330 Q242 338 216 330 Z" fill={cuff} stroke="#000" strokeOpacity="0.35" />
+          <text x="59" y="320" textAnchor="middle" style={{ fontSize: 9, fontWeight: 800, fill: cuffText }}>{rubber.gloveClass}</text>
+          <text x="241" y="320" textAnchor="middle" style={{ fontSize: 9, fontWeight: 800, fill: cuffText }}>{rubber.gloveClass}</text>
+        </g>
+      )}
       {on('gloves_leather') && <g><path d="M38 302 Q58 296 80 302 L82 322 Q58 328 36 322 Z" fill="#6b4a2a" /><path d="M220 302 Q242 296 262 302 L264 322 Q242 328 218 322 Z" fill="#6b4a2a" /></g>}
       <ellipse cx="58" cy="346" rx="18" ry="24" fill={hand} />
       <ellipse cx="242" cy="346" rx="18" ry="24" fill={hand} />
       <ellipse cx="76" cy="338" rx="6" ry="11" fill={hand} transform="rotate(-28 76 338)" />
       <ellipse cx="224" cy="338" rx="6" ry="11" fill={hand} transform="rotate(28 224 338)" />
-      {on('gloves00') && <g stroke="#1d2024" strokeOpacity="0.5" strokeWidth="1.4" fill="none"><path d="M48 350 L48 366 M58 352 L58 368 M68 350 L68 366" /><path d="M232 350 L232 366 M242 352 L242 368 M252 350 L252 366" /></g>}
-      {!on('gloves00') && !on('gloves_leather') && <g stroke="#a0744a" strokeOpacity="0.6" strokeWidth="1.2" fill="none"><path d="M50 350 L50 364 M58 352 L58 366 M66 350 L66 364" /><path d="M234 350 L234 364 M242 352 L242 366 M250 350 L250 364" /></g>}
+      {rubber && <g stroke="#1d2024" strokeOpacity="0.5" strokeWidth="1.4" fill="none"><path d="M48 350 L48 366 M58 352 L58 368 M68 350 L68 366" /><path d="M232 350 L232 366 M242 352 L242 368 M252 350 L252 366" /></g>}
+      {!rubber && !on('gloves_leather') && <g stroke="#a0744a" strokeOpacity="0.6" strokeWidth="1.2" fill="none"><path d="M50 350 L50 364 M58 352 L58 366 M66 350 L66 364" /><path d="M234 350 L234 364 M242 352 L242 366 M250 350 L250 364" /></g>}
 
       {/* neck and head */}
       <path d="M136 112 L164 112 L166 142 L134 142 Z" fill={skin} />

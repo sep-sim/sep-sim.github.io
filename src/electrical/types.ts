@@ -26,10 +26,10 @@ export const POINT_LABEL: Record<Point, string> = {
   CBL_1: 'feeder lug L1', CBL_2: 'feeder lug L2', CBL_3: 'feeder lug L3', FRAME: 'motor frame ground stud',
 }
 
-export type PpeId = 'hardhat' | 'glasses' | 'hearing' | 'cotton' | 'ar8' | 'ar12' | 'suit40' | 'faceshield' | 'gloves_leather' | 'gloves00' | 'boots'
+export type PpeId = 'hardhat' | 'glasses' | 'hearing' | 'cotton' | 'ar8' | 'ar12' | 'suit40' | 'faceshield' | 'gloves_leather' | 'gloves00' | 'gloves0' | 'gloves1' | 'gloves2' | 'gloves3' | 'gloves4' | 'boots'
 export type PpeSlot = 'head' | 'eyes' | 'ears' | 'body' | 'face' | 'hands' | 'feet'
 
-export interface PpeItem { id: PpeId; label: string; slot: PpeSlot; arcRating?: number; shockOk?: boolean; note: string }
+export interface PpeItem { id: PpeId; label: string; slot: PpeSlot; arcRating?: number; shockOk?: boolean; note: string; gloveClass?: string; maxUseAc?: number; cuff?: string }
 
 export const PPE_ITEMS: PpeItem[] = [
   { id: 'hardhat', label: 'Hard hat, Class E', slot: 'head', note: 'Rated 20 kV. Required under the arc flash hood or face shield.' },
@@ -41,7 +41,12 @@ export const PPE_ITEMS: PpeItem[] = [
   { id: 'suit40', label: 'Arc flash suit with hood, 40 cal/cm²', slot: 'body', arcRating: 40, note: 'Jacket, bib overalls and hood. Hood covers the face.' },
   { id: 'faceshield', label: 'AR face shield and balaclava, 12 cal/cm²', slot: 'face', arcRating: 12, note: 'Required with AR daily wear or coverall. Not needed with the 40 cal hood.' },
   { id: 'gloves_leather', label: 'Leather work gloves', slot: 'hands', shockOk: false, note: 'Arc protection only. No shock protection.' },
-  { id: 'gloves00', label: 'Class 00 rubber insulating gloves with leather protectors', slot: 'hands', shockOk: true, note: 'Max use 500 V AC. Required for shock exposure at 480 V.' },
+  { id: 'gloves00', label: 'Class 00 rubber insulating gloves with leather protectors', slot: 'hands', shockOk: true, gloveClass: '00', maxUseAc: 500, cuff: '#d9c6a5', note: 'Max use 500 V AC / 750 V DC. Beige label. The class the label calls for at 480 V.' },
+  { id: 'gloves0', label: 'Class 0 rubber insulating gloves with leather protectors', slot: 'hands', shockOk: true, gloveClass: '0', maxUseAc: 1000, cuff: '#b3202c', note: 'Max use 1,000 V AC / 1,500 V DC. Red label. Acceptable at 480 V; many sites spec it for the margin.' },
+  { id: 'gloves1', label: 'Class 1 rubber insulating gloves with leather protectors', slot: 'hands', shockOk: true, gloveClass: '1', maxUseAc: 7500, cuff: '#f2f2f2', note: 'Max use 7,500 V AC / 11,250 V DC. White label. Over-rated for 480 V, heavier, less dexterity.' },
+  { id: 'gloves2', label: 'Class 2 rubber insulating gloves with leather protectors', slot: 'hands', shockOk: true, gloveClass: '2', maxUseAc: 17000, cuff: '#f2d21b', note: 'Max use 17,000 V AC / 25,500 V DC. Yellow label. Medium voltage work.' },
+  { id: 'gloves3', label: 'Class 3 rubber insulating gloves with leather protectors', slot: 'hands', shockOk: true, gloveClass: '3', maxUseAc: 26500, cuff: '#2e9e4f', note: 'Max use 26,500 V AC / 39,750 V DC. Green label. Medium voltage work.' },
+  { id: 'gloves4', label: 'Class 4 rubber insulating gloves with leather protectors', slot: 'hands', shockOk: true, gloveClass: '4', maxUseAc: 36000, cuff: '#f58a1f', note: 'Max use 36,000 V AC / 54,000 V DC. Orange label. Distribution voltage work.' },
   { id: 'boots', label: 'Leather EH-rated boots', slot: 'feet', note: 'Required.' },
 ]
 
