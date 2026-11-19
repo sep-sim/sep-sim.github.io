@@ -3,6 +3,7 @@ import { chargeLampOn, relayLit } from '../engine'
 import type { ElecState, LockTarget } from '../types'
 import type { SceneProps } from './common'
 import { Hotspot, TP } from './common'
+import bucketImg from './assets/bucket480.jpg'
 
 interface Props extends SceneProps {
   dispatch: (a: Action) => void
@@ -120,17 +121,6 @@ export function RoomScene({ state, onProbe, dispatch, onLabel }: Props) {
             </g>
           )
         })}
-        {s.auxDoorOpen && (
-          <g>
-            <rect x="300" y="186" width="132" height="86" fill="#6a7270" stroke="#2f3533" />
-            <text x="366" y="198" textAnchor="middle" className="tiny-light">3B LOAD SIDE · 480 V</text>
-            <TP state={s} id="AUX_T1" x={318} y={226} label="T1" side="bottom" onProbe={onProbe} />
-            <TP state={s} id="AUX_T2" x={348} y={226} label="T2" side="bottom" onProbe={onProbe} />
-            <TP state={s} id="AUX_T3" x={378} y={226} label="T3" side="bottom" onProbe={onProbe} />
-            <TP state={s} id="AUX_G" x={412} y={226} label="G" side="bottom" onProbe={onProbe} />
-            <text x="366" y="262" textAnchor="middle" className="tiny-light" style={{ fontSize: 6 }}>to VFD-2 cooling fans + CPT</text>
-          </g>
-        )}
         {/* panelboard LP-1 */}
         <rect x="300" y="290" width="132" height="184" fill="url(#rCab)" stroke="#6b7270" />
         <rect x="308" y="296" width="80" height="12" fill="#f4f4f0" stroke="#999" />
@@ -157,6 +147,37 @@ export function RoomScene({ state, onProbe, dispatch, onLabel }: Props) {
         </g>
         {s.tags.ctrl && <g><rect x="364" y="452" width="30" height="20" fill="#ffd100" stroke="#333" /><text x="379" y="461" textAnchor="middle" className="tiny-dark" style={{ fontWeight: 700, fontSize: 6 }}>DANGER</text></g>}
       </g>
+
+      {/* ---------- bucket 3B open: combination starter photo with the 789 points and the handle mapped on it ---------- */}
+      {s.auxDoorOpen && (
+        <g>
+          <rect x="24" y="100" width="412" height="372" rx="6" fill="#2b2f33" stroke="#f5a524" strokeWidth="2" />
+          <text x="230" y="116" textAnchor="middle" className="tiny-light" style={{ fontSize: 8, fontWeight: 700 }}>CENTERLINE 2100 · BUCKET 3B · VFD-2 AUX · DOOR OPEN · {s.closed.aux ? '480 V LIVE' : 'HANDLE OFF'}</text>
+          <image href={bucketImg} x="30" y="122" width="400" height="330" preserveAspectRatio="xMidYMid meet" />
+          {/* rotary disconnect handle on the right flange operates the bucket */}
+          <g className="hotspot-g" onClick={() => dispatch({ type: 'switch', target: 'aux', closed: !s.closed.aux })}>
+            <rect x="364" y="250" width="62" height="160" fill="#fff" fillOpacity="0.02" stroke="#f5a524" strokeDasharray="4 3" />
+            <title>{s.closed.aux ? 'Rotate the disconnect handle to OFF' : 'Rotate the disconnect handle to ON'}</title>
+          </g>
+          <text x="395" y="420" textAnchor="middle" className="hint">handle · {s.closed.aux ? 'ON' : 'OFF'}</text>
+          <g className="hotspot-g" onClick={() => dispatch({ type: 'lock', target: 'aux', on: !s.locks.aux })}>
+            <rect x="386" y="426" width="16" height="8" fill="#777" stroke="#333" />
+            {s.locks.aux && <g><rect x="384" y="434" width="20" height="14" rx="3" fill="#d62828" stroke="#5a0000" /><path d="M388 434 v-5 a6 6 0 0 1 12 0 v5" fill="none" stroke="#bbb" strokeWidth="2.5" /></g>}
+            <title>{s.locks.aux ? 'Remove lock' : 'Apply personal lock to the handle hasp'}</title>
+          </g>
+          {s.tags.aux && <g><rect x="408" y="430" width="24" height="16" fill="#ffd100" stroke="#333" /><text x="420" y="440" textAnchor="middle" className="tiny-dark" style={{ fontWeight: 700, fontSize: 5 }}>DANGER</text></g>}
+          {/* load terminals T1 T2 T3 and the enclosure ground */}
+          <TP state={s} id="AUX_T1" x={289} y={399} label="T1" side="bottom" onProbe={onProbe} />
+          <TP state={s} id="AUX_T2" x={311} y={399} label="T2" side="bottom" onProbe={onProbe} />
+          <TP state={s} id="AUX_T3" x={332} y={399} label="T3" side="bottom" onProbe={onProbe} />
+          <TP state={s} id="AUX_G" x={66} y={428} label="G" side="right" onProbe={onProbe} />
+          <text x="110" y="446" className="tiny-light" style={{ fontSize: 6 }}>HMCP breaker · NEMA contactor + overload · control terminals left · load terminals T1 T2 T3 right</text>
+          <g className="hotspot" onClick={() => dispatch({ type: 'auxDoor', open: false })}>
+            <rect x="30" y="458" width="110" height="12" rx="3" />
+            <text x="85" y="467" textAnchor="middle" style={{ fontSize: 8 }}>close bucket door</text>
+          </g>
+        </g>
+      )}
 
       {/* ---------- Toshiba JK series MV controller, 4160 V ---------- */}
       <g>
