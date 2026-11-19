@@ -1,0 +1,91 @@
+/* ---------- field scenes ---------- */
+svg.scene { width: 100%; height: 100%; font-family: inherit; }
+.scene-h { fill: #2b2f33; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; }
+.scene-note { fill: #2b2f33; font-size: 11px; }
+.tiny-dark { fill: #1e2226; font-size: 8px; }
+.tiny-light { fill: #e6e8ea; font-size: 8px; }
+.brand-light { fill: #f2f2f2; font-size: 20px; font-weight: 900; letter-spacing: 0.12em; }
+.seg { font-family: Consolas, monospace; font-size: 24px; font-weight: 700; letter-spacing: 0.1em; }
+.hint { fill: #f5a524; font-size: 9px; font-weight: 600; }
+.hotspot-g { cursor: pointer; }
+.hotspot-g:hover rect, .hotspot-g:hover circle { filter: brightness(1.15); }
+.hotspot { cursor: pointer; }
+.hotspot rect { fill: #171d25; stroke: #f5a524; stroke-width: 1.5; opacity: 0.92; }
+.hotspot text { fill: #f5a524; font-size: 12px; font-weight: 600; }
+.hotspot:hover rect { fill: #f5a524; }
+.hotspot:hover text { fill: #111; }
+.etp { cursor: pointer; }
+.etp circle { fill: #f1f3f5; stroke: #1e2226; stroke-width: 2; }
+.etp:hover circle { stroke: #f5a524; stroke-width: 3; }
+.etp.a circle { fill: #ff4d4d; stroke: #fff; }
+.etp.b circle { fill: #222; stroke: #fff; }
+.etp-label { fill: #1e2226; font-size: 9px; font-weight: 700; pointer-events: none; }
+
+.scene-nav { display: flex; gap: 4px; }
+.scene-nav button { font-size: 12px; }
+.ppe-chip { font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 999px; }
+.ppe-chip.ok { background: #1f4d35; color: var(--ok); }
+.ppe-chip.bad { background: #4d1f22; color: var(--bad); }
+.ppe-status { border-radius: 8px; padding: 10px 12px; margin-bottom: 6px; }
+.ppe-status.ok { background: #1f4d35; color: var(--ok); }
+.ppe-status.bad { background: #4d1f22; color: var(--bad); }
+.log.violation { color: var(--bad); font-weight: 700; }
+
+/* arc flash label modal */
+.modal-back { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.65); display: flex; align-items: center; justify-content: center; z-index: 50; }
+.arc-label { width: 440px; max-width: 94vw; background: #fff; color: #111; border: 4px solid #111; border-radius: 6px; overflow: hidden; font-size: 13px; }
+.arc-head { background: #f26b00; color: #111; font-weight: 900; font-size: 26px; text-align: center; padding: 6px; letter-spacing: 0.04em; }
+.arc-title { text-align: center; font-weight: 800; font-size: 15px; padding: 8px; border-bottom: 2px solid #111; }
+.arc-title span { font-weight: 600; font-size: 12px; }
+.arc-grid { display: grid; grid-template-columns: 1fr 1fr; }
+.arc-col { padding: 8px 10px; border-right: 2px solid #111; }
+.arc-col:last-child { border-right: 0; }
+.arc-col h5, .arc-ppe h5 { margin: 0 0 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
+.arc-col div { display: flex; justify-content: space-between; gap: 8px; padding: 2px 0; }
+.arc-col span { color: #444; }
+.arc-ppe { border-top: 2px solid #111; padding: 8px 10px; line-height: 1.4; }
+.arc-foot { border-top: 2px solid #111; padding: 6px 10px; font-size: 10px; color: #333; display: grid; gap: 2px; }
+.arc-label button { margin: 8px 10px 10px; }
+
+/* Fluke 1587 */
+.f1587 { display: grid; gap: 10px; }
+.f1587-body { background: #f5b800; border-radius: 22px; padding: 12px 10px 14px; box-shadow: 0 8px 20px rgba(0, 0, 0, 0.55), inset 0 0 0 2px #c99400; }
+.f1587-face { background: #4a4b4d; border-radius: 14px; padding: 10px 10px 8px; }
+.f1587-brand { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+.f1587-model { color: #eee; font-size: 11px; letter-spacing: 0.04em; }
+.f1587-model b { font-size: 13px; margin-right: 4px; }
+.f1587-lcd { background: #c6cfc6; color: #10140f; border-radius: 6px; padding: 6px 10px; border: 3px solid #1b1b1b; box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.4); font-family: Consolas, monospace; min-height: 96px; }
+.f1587-lcd.off { background: #98a196; }
+.f1587-top, .f1587-bottom { display: flex; justify-content: space-between; font-size: 11px; font-weight: 700; min-height: 14px; }
+.f1587-top .bad { color: #a30000; }
+.f1587-digits { font-size: 34px; font-weight: 700; text-align: right; line-height: 1.1; min-height: 40px; }
+.f1587-ann { font-size: 9px; }
+.f1587-keys { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 6px; margin-top: 10px; }
+.f1587-keys button { background: #2b2c2e; color: #f3f3f3; border: 1px solid #111; border-bottom: 3px solid #0a0a0a; border-radius: 5px; font-size: 10px; font-weight: 700; padding: 8px 2px; }
+.f1587-keys button.test { background: #f5b800; color: #111; }
+.f1587-keys button:active:not(:disabled) { border-bottom-width: 1px; transform: translateY(2px); }
+.f789-knob-labels.small { width: 200px; height: 200px; }
+.f789-knob.small { width: 100px; height: 100px; }
+.f789-knob.small .f789-pointer { height: 50px; margin-top: -50px; }
+.f789-knob.small .f789-pointer::before { height: 90px; }
+
+/* Toshiba keypad */
+.tkp { background: #15171a; border-radius: 10px; padding: 12px; border: 2px solid #000; }
+.tkp-head { color: #ddd; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; margin-bottom: 8px; }
+.tkp-lcd { background: #0b2a1e; border: 2px solid #263; border-radius: 4px; padding: 8px 10px; min-height: 64px; }
+.tkp-lcd.off { background: #0d100f; }
+.tkp-big { font-family: Consolas, monospace; font-size: 34px; font-weight: 700; color: #3ddc84; text-align: right; line-height: 1; }
+.tkp-sub { font-size: 11px; color: #9fd9b8; text-align: right; margin-top: 4px; min-height: 14px; }
+.tkp-leds { display: flex; gap: 14px; margin: 8px 0; }
+.tkp-leds span { font-size: 10px; color: #777; }
+.tkp-leds span::before { content: '● '; color: #333; }
+.tkp-leds span.on::before { color: #3ddc84; }
+.tkp-leds span.trip::before { color: #ff2d2d; }
+.tkp-keys { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.tkp-keys button { background: #3a3d42; color: #eee; border: 1px solid #000; border-bottom: 3px solid #000; border-radius: 5px; font-size: 11px; font-weight: 700; padding: 8px 2px; min-height: 36px; }
+.tkp-keys button small { display: block; font-size: 8px; font-weight: 400; }
+.tkp-keys button.run { background: #1f7a3e; }
+.tkp-keys button.stop { background: #a12222; }
+
+.menu-section { margin-top: 28px; }
+.menu-section h2 { font-size: 15px; margin: 0 0 4px; }

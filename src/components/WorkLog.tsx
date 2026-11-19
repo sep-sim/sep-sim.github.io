@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
-import type { LogEntry } from '../engine/types'
+
+interface Entry { t: number; kind: string; text: string }
 
 function fmt(t: number): string {
   const m = Math.floor(t / 60)
@@ -7,7 +8,7 @@ function fmt(t: number): string {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 }
 
-export function WorkLog({ log }: { log: LogEntry[] }) {
+export function WorkLog({ log }: { log: Entry[] }) {
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const el = ref.current

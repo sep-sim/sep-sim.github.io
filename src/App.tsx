@@ -7,6 +7,9 @@ import { SiteDiagram } from './components/SiteDiagram'
 import { Toolbox } from './components/Toolbox'
 import { WorkLog } from './components/WorkLog'
 import { Results } from './components/Results'
+import type { ElecScenario } from './electrical/types'
+import { ELEC_SCENARIOS, pickRandomElecScenario } from './electrical/scenarios'
+import { ElecSim } from './electrical/ui/ElecSim'
 
 function Sim({ scenario, onExit }: { scenario: Scenario; onExit: () => void }) {
   const [state, dispatch] = useReducer(reduce, scenario, createSession)
@@ -53,31 +56,53 @@ function Sim({ scenario, onExit }: { scenario: Scenario; onExit: () => void }) {
   )
 }
 
-function Menu({ onPick }: { onPick: (s: Scenario) => void }) {
+type Pick = { kind: 'loop'; s: Scenario } | { kind: 'elec'; s: ElecScenario }
+
+function Menu({ onPick }: { onPick: (p: Pick) => void }) {
   return (
     <div className="menu">
-      <h1><span className="brand">MidstreamSim</span> · I&amp;E loop troubleshooting</h1>
-      <p className="muted">
-        A 4-20 mA pressure loop at a pipeline pump station. Each work order hides one fault. Do your pre-work,
-        find it with the meter, communicator and manifold, repair it, and prove the point is back in service.
-      </p>
-      <div className="row"><button className="primary" onClick={() => onPick(pickRandomScenario())}>Random work order</button></div>
-      <div className="cards">
-        {SCENARIOS.map((s) => (
-          <button key={s.id} className="card" onClick={() => onPick(s)}>
-            <div className={`pill ${s.difficulty}`}>{s.difficulty}</div>
-            <div className="card-title">{s.title}</div>
-            <div className="muted small">{s.workOrder}</div>
-          </button>
-        ))}
+      <h1><span className="brand">MidstreamSim</span> · I&amp;E field training</h1>
+      <div className="menu-section">
+        <h2>Electrical · VFD ground fault, lockout, verification, insulation testing</h2>
+        <p className="muted">
+          Toshiba VF-AS3 on a 100 HP pump. Read the label, dress for it, isolate both sources, prove zero energy, lift the leads, meg,
+          then open the terminal box and find out whether it is the termination, the cable, or a winding.
+        </p>
+        <div className="row"><button className="primary" onClick={() => onPick({ kind: 'elec', s: pickRandomElecScenario() })}>Random work order</button></div>
+        <div className="cards">
+          {ELEC_SCENARIOS.map((s) => (
+            <button key={s.id} className="card" onClick={() => onPick({ kind: 'elec', s })}>
+              <div className={`pill ${s.difficulty}`}>{s.difficulty}</div>
+              <div className="card-title">{s.title}</div>
+              <div className="muted small">{s.workOrder}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="menu-section">
+        <h2>Instrumentation · 4-20 mA loop troubleshooting</h2>
+        <p className="muted">
+          A pressure loop at a pump station. Each work order hides one fault. Pre-work, Fluke 789, AMS Trex, manifold, repair, prove it back in service.
+        </p>
+        <div className="row"><button className="primary" onClick={() => onPick({ kind: 'loop', s: pickRandomScenario() })}>Random work order</button></div>
+        <div className="cards">
+          {SCENARIOS.map((s) => (
+            <button key={s.id} className="card" onClick={() => onPick({ kind: 'loop', s })}>
+              <div className={`pill ${s.difficulty}`}>{s.difficulty}</div>
+              <div className="card-title">{s.title}</div>
+              <div className="muted small">{s.workOrder}</div>
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   )
 }
 
 export default function App() {
-  const [scenario, setScenario] = useState<Scenario | null>(null)
+  const [pick, setPick] = useState<Pick | null>(null)
   const [runKey, setRunKey] = useState(0)
-  if (!scenario) return <Menu onPick={(s) => { setScenario(s); setRunKey((k) => k + 1) }} />
-  return <Sim key={runKey} scenario={scenario} onExit={() => setScenario(null)} />
+  if (!pick) return <Menu onPick={(p) => { setPick(p); setRunKey((k) => k + 1) }} />
+  if (pick.kind === 'elec') return <ElecSim key={runKey} scenario={pick.s} onExit={() => setPick(null)} />
+  return <Sim key={runKey} scenario={pick.s} onExit={() => setPick(null)} />
 }

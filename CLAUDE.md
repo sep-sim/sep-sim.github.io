@@ -47,3 +47,26 @@ solution path added to its `solutions` map.
 - Any new technician action goes through the reducer and writes a log line. Field actions call `fieldAction()` so
   pre-work can be scored.
 - Realism over gamification: readings, failure modes and procedures should match what a tech would see in the field.
+
+## Electrical module (`src/electrical/`)
+
+Second scenario family: VFD-101 (Toshiba VF-AS3, 100 HP) ground fault on pump P-101. Separate engine, same app.
+
+```
+src/electrical/types.ts      points, scenes, PPE catalog, arc label, diagnosis/repair/checklist catalogs, ElecState
+src/electrical/engine.ts     reducer + physics: busVolts() decay, voltageBetween(), ppeCheck(), insulationTest(), PENALTY table
+src/electrical/score.ts      rubric: hazard/PPE 20, LOTO+verification 35, testing+diagnosis 25, restoration 10, efficiency 10, penalties
+src/electrical/scenarios.ts  3 work orders: termination fault, winding fault, cable fault
+src/electrical/ui/           ElecSim (layout), MccScene / DriveScene / MotorScene (SVG "in the field" views),
+                             Fluke1587, Panels (Prework, PpeLocker, Loto, Keypad, Closeout), ArcLabel modal
+```
+
+Model notes worth knowing before touching it:
+- Two energy sources: MCC-3 3B (480 V) and LP-2 ckt 7 (120 V control). The output isolation contactor 1M is held in by
+  control power, so megging motor leads still landed on 1M with LP-2 live puts test voltage into the drive (`meg_into_drive`).
+- DC bus: 648 V while closed, decays with τ = 180 s after opening; CHARGE lamp > 50 V. V AC on the bus reads ~2 V (trap).
+- Insulation model is a node graph: cable1-3 and motor1-3, joined by bolted feeder lugs and the T4-T5-T6 wye bar.
+  Resistance to ground of a group = parallel of its members. Phase to phase inside one group = 0.00 MΩ (continuity).
+  Opening the wye bar is what localizes a winding fault.
+- Violations are recorded once each with a count; `requireHandsOn()` is the gate for any hands-on action.
+- `done` flags record history for scoring after restoration (locks removed, breaker closed again).
