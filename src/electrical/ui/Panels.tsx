@@ -1,7 +1,8 @@
 import type { Action } from '../engine'
-import { busVolts, chargeLampOn, keypadLit, ppeCheck, REQUIRED_DEAD, deadTestDone, provedBefore, provedAfter, lockedOut } from '../engine'
+import { busVolts, chargeLampOn, keypadLit, ppeCheck, suitedUp, REQUIRED_DEAD, deadTestDone, provedBefore, provedAfter, lockedOut } from '../engine'
 import type { ElecState } from '../types'
 import { CHECKLIST, DIAGNOSES, POINT_LABEL, PPE_ITEMS, REPAIRS } from '../types'
+import { Worker } from './Worker'
 
 interface P { state: ElecState; dispatch: (a: Action) => void }
 
@@ -32,47 +33,61 @@ export function Prework({ state, dispatch }: P) {
   )
 }
 
+const SWATCH: Record<string, string> = {
+  hardhat: '#f4f4f0', glasses: '#9fc8ff', hearing: '#f58220', cotton: '#6b7f99', ar8: '#1f3a5f', ar12: '#d9822b', suit40: '#5c6b2f',
+  faceshield: '#8fb3c9', gloves_leather: '#a0744a', gloves00: '#1b1b1b', boots: '#5a3a1e',
+}
+
 export function PpeLocker({ state, dispatch }: P) {
   const chk = ppeCheck(state)
   const l = state.scenario.label
   const slots: { slot: string; label: string }[] = [
     { slot: 'head', label: 'Head' }, { slot: 'eyes', label: 'Eyes' }, { slot: 'ears', label: 'Hearing' },
-    { slot: 'body', label: 'Body (arc rating must be ≥ incident energy)' }, { slot: 'face', label: 'Face' }, { slot: 'hands', label: 'Hands' }, { slot: 'feet', label: 'Feet' },
+    { slot: 'body', label: 'Body' }, { slot: 'face', label: 'Face' }, { slot: 'hands', label: 'Hands' }, { slot: 'feet', label: 'Feet' },
   ]
   const confirmed = state.ppeConfirmed
+  const suited = suitedUp(state)
   return (
-    <div>
-      <div className="ppe-label">
-        <b>From the label on VFD-101</b>
-        {state.labelRead ? (
-          <table className="kv">
-            <tbody>
-              <tr><td>Incident energy</td><td><b>{l.incidentEnergy} cal/cm²</b> at {l.workingDistance} in</td></tr>
-              <tr><td>Minimum arc rating</td><td><b>{l.minArcRating} cal/cm²</b> clothing, AR hood or shield + balaclava</td></tr>
-              <tr><td>Shock</td><td>{l.voltage} V · class {l.gloveClass} gloves with leather protectors</td></tr>
-              <tr><td>Boundary</td><td>Arc flash {l.arcFlashBoundary} in · limited {l.limitedApproach} in · restricted {l.restrictedApproach} in</td></tr>
-            </tbody>
-          </table>
-        ) : <div className="small muted">You have not read the label yet. It is on the cabinet door in the MCC room.</div>}
-      </div>
-      <div className={`ppe-status ${chk.adequate ? 'ok' : 'bad'}`}>
-        <b>{chk.adequate ? 'Selection meets the label' : 'Selection does not meet the label'}</b>
-        <div className="small">Body rating {chk.bodyRating} cal/cm² vs {l.incidentEnergy} cal/cm² incident energy</div>
-        {chk.issues.map((i) => <div key={i} className="small">• {i}</div>)}
-        <div className="row" style={{ marginTop: 8 }}>
-          <button className="primary" onClick={() => dispatch({ type: 'ppeConfirm' })}>Confirm PPE for this task</button>
-          {confirmed && <span className={`pill ${confirmed.adequate ? 'ok' : 'bad'}`}>{confirmed.adequate ? 'CONFIRMED' : 'CONFIRMED · SHORT'}</span>}
+    <div className="suitup">
+      <div className="suitup-top">
+        <div className="suitup-figure">
+          <Worker ppe={state.ppe} adequate={chk.adequate} />
+          <div className={`pill ${suited ? 'ok' : 'bad'}`}>{suited ? 'SUITED UP' : confirmed ? 'KIT CHANGED' : 'NOT SUITED UP'}</div>
+        </div>
+        <div className="suitup-label">
+          <b>Label on VFD-101</b>
+          {state.labelRead ? (
+            <ul>
+              <li><b>{l.incidentEnergy} cal/cm²</b> at {l.workingDistance} in</li>
+              <li>Arc rating ≥ <b>{l.minArcRating} cal/cm²</b></li>
+              <li>AR hood, or shield + balaclava</li>
+              <li>Class <b>{l.gloveClass}</b> gloves + leather protectors</li>
+              <li>Hard hat, glasses, hearing, leather boots</li>
+              <li>AFB {l.arcFlashBoundary} in</li>
+            </ul>
+          ) : <div className="small muted">Read the label on the cabinet door first.</div>}
+          <div className={`ppe-status ${chk.adequate ? 'ok' : 'bad'}`}>
+            <b>{chk.adequate ? 'Kit meets the label' : 'Kit short of the label'}</b>
+            {chk.issues.map((i) => <div key={i} className="small">• {i}</div>)}
+          </div>
+          <button className="primary" onClick={() => dispatch({ type: 'ppeConfirm' })} disabled={suited}>{suited ? 'Suited up ✓' : 'Suit up for this task'}</button>
         </div>
       </div>
+      <p className="muted small">Dress him before touching a breaker, lock or tag. Tap gear on the rack to put it on or take it off.</p>
       {slots.map((sl) => (
-        <div key={sl.slot}>
-          <h4>{sl.label}</h4>
-          {PPE_ITEMS.filter((p) => p.slot === sl.slot).map((p) => (
-            <label key={p.id} className="check">
-              <input type="checkbox" checked={state.ppe.includes(p.id)} onChange={(e) => dispatch({ type: 'ppe', id: p.id, on: e.target.checked })} />
-              <span>{p.label}{p.arcRating != null && p.arcRating > 0 ? ` · ${p.arcRating} cal` : ''}<br /><span className="muted small">{p.note}</span></span>
-            </label>
-          ))}
+        <div key={sl.slot} className="rack-row">
+          <span className="rack-slot">{sl.label}</span>
+          <div className="rack-items">
+            {PPE_ITEMS.filter((p) => p.slot === sl.slot).map((p) => {
+              const worn = state.ppe.includes(p.id)
+              return (
+                <button key={p.id} className={`rack-item ${worn ? 'worn' : ''}`} title={p.note} onClick={() => dispatch({ type: 'ppe', id: p.id, on: !worn })}>
+                  <i style={{ background: SWATCH[p.id] }} />
+                  <span>{p.label}{p.arcRating != null && p.arcRating > 0 ? ` · ${p.arcRating} cal` : ''}</span>
+                </button>
+              )
+            })}
+          </div>
         </div>
       ))}
     </div>

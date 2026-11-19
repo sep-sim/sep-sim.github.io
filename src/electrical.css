@@ -181,3 +181,19 @@ svg.scene { width: 100%; height: 100%; font-family: inherit; }
 .tic-handle span { width: 12px; height: 12px; border-radius: 50%; background: #111; border: 2px solid #555; }
 .tic-readout { font-family: Consolas, monospace; font-size: 13px; padding: 6px 12px; border-radius: 6px; background: var(--panel-2); width: 100%; text-align: center; }
 .tic-readout.hot { background: #4d1f22; color: var(--bad); font-weight: 700; }
+
+/* ---------- suit-up: worker figure and gear rack ---------- */
+.suitup { display: grid; gap: 8px; }
+.suitup-top { display: grid; grid-template-columns: 170px 1fr; gap: 10px; align-items: start; }
+.suitup-figure { display: grid; justify-items: center; gap: 6px; background: var(--panel-2); border-radius: 10px; padding: 8px 4px; }
+svg.worker { width: 150px; height: 300px; }
+svg.worker.ok { filter: drop-shadow(0 0 6px rgba(61, 220, 132, 0.45)); }
+.suitup-label { font-size: 12px; display: grid; gap: 6px; }
+.suitup-label ul { margin: 0; padding-left: 16px; line-height: 1.5; }
+.suitup-label .ppe-status { margin: 0; padding: 8px 10px; }
+.rack-row { display: grid; grid-template-columns: 56px 1fr; gap: 6px; align-items: start; }
+.rack-slot { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); padding-top: 6px; }
+.rack-items { display: flex; flex-wrap: wrap; gap: 4px; }
+.rack-item { display: flex; align-items: center; gap: 6px; font-size: 11px; padding: 4px 8px; border-radius: 999px; }
+.rack-item i { width: 12px; height: 12px; border-radius: 50%; border: 1px solid #000; flex: none; }
+.rack-item.worn { border-color: var(--ok); background: #1f4d35; color: #e6ebf0; }

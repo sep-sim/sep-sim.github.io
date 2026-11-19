@@ -48,9 +48,9 @@ export type Action =
 // ---- penalties ----------------------------------------------------------------------------------
 
 export const PENALTY: Record<string, { points: number; label: string }> = {
-  ppe_breaker: { points: -20, label: 'Operated the 480 V breaker without adequate arc flash PPE' },
-  ppe_test: { points: -20, label: 'Voltage testing on unverified conductors without adequate PPE' },
-  ppe_door: { points: -15, label: 'Opened the drive cabinet energized without adequate PPE' },
+  ppe_before_loto: { points: -20, label: 'Started isolating equipment before suiting up in the PPE the label calls for' },
+  ppe_test: { points: -20, label: 'Voltage testing on unverified conductors without the PPE the label calls for' },
+  ppe_door: { points: -15, label: 'Opened the drive cabinet energized without the PPE the label calls for' },
   no_prove_before: { points: -10, label: 'Absence-of-voltage test without proving the meter on a known source first' },
   no_prove_after: { points: -10, label: 'Meter not re-proved after testing dead' },
   bus_ac_only: { points: -10, label: 'DC bus checked with AC volts only (reads zero even at 650 V DC)' },
@@ -205,6 +205,18 @@ export function ppeCheck(s: ElecState): { adequate: boolean; issues: string[]; b
   if (!worn.has('gloves00')) issues.push('No voltage-rated gloves (class 00 required for 480 V shock exposure)')
   if (!worn.has('boots')) issues.push('No leather footwear')
   return { adequate: issues.length === 0, issues, bodyRating: body }
+}
+
+/** Suited up: the technician confirmed the kit against the label and is still wearing an adequate kit. */
+export function suitedUp(s: ElecState): boolean {
+  return s.ppeConfirmed != null && s.ppeConfirmed.adequate && ppeCheck(s).adequate
+}
+
+function requireSuit(s: ElecState, id: string): ElecState {
+  if (suitedUp(s)) return s
+  const chk = ppeCheck(s)
+  const why = s.ppeConfirmed == null ? 'PPE never confirmed against the label' : chk.issues[0] ?? 'kit changed after confirmation'
+  return violate(s, id, why)
 }
 
 // ---- verification tracking ------------------------------------------------------------------------
@@ -500,10 +512,7 @@ function placeLead(s: ElecState, p: Point): ElecState {
   }
 
   const scene = POINT_SCENE[a]
-  if (scene === 'drive' && !verifiedDead(s)) {
-    const ppe = ppeCheck(s)
-    if (!ppe.adequate) next = violate(next, 'ppe_test', ppe.issues[0])
-  }
+  if (scene === 'drive' && !verifiedDead(s)) next = requireSuit(next, 'ppe_test')
   const live = m.mode === 'VAC' ? v.ac > 30 : Math.abs(v.dc) > 30
   if (!live) {
     const d: DeadTest = { a, b, mode: m.mode, t: next.t, instrument: 'dmm' }
@@ -581,10 +590,7 @@ function ticCheck(s: ElecState, p: Point): ElecState {
   const detected = ac >= threshold
   let next: ElecState = { ...s, tic: { ...t, last: { point: p, detected, t: s.t } }, tests: s.tests + 1 }
   const isDc = p === 'DC_P' || p === 'DC_N'
-  if (POINT_SCENE[p] === 'drive' && !verifiedDead(s)) {
-    const ppe = ppeCheck(s)
-    if (!ppe.adequate) next = violate(next, 'ppe_test', ppe.issues[0])
-  }
+  if (POINT_SCENE[p] === 'drive' && !verifiedDead(s)) next = requireSuit(next, 'ppe_test')
   next = log(next, 'measure', `TIC 300 PRO ${t.range} at ${POINT_LABEL[p]}: ${detected ? '⚡ tip flashing, beeper sounding – AC voltage present' : 'no indication'}`)
   if (detected) {
     if (p.startsWith('RECEPT')) next = { ...next, proofs: [...next.proofs, next.t] }
@@ -664,16 +670,14 @@ export function reduceElec(s: ElecState, a: Action): ElecState {
       const l = s.scenario.label
       const next: ElecState = { ...s, ppeConfirmed: { t: s.t, adequate: chk.adequate } }
       if (chk.adequate) {
-        return log(next, 'action', `PPE confirmed against the label: ${chk.bodyRating} cal/cm² arc-rated clothing for ${l.incidentEnergy} cal/cm² at ${l.workingDistance} in, head and face protection, class ${l.gloveClass} gloves, hearing, eyes, leather footwear.`)
+        return log(next, 'action', `Suited up against the label: ${chk.bodyRating} cal/cm² arc-rated clothing for ${l.incidentEnergy} cal/cm² at ${l.workingDistance} in, head and face protection, class ${l.gloveClass} gloves, hearing, eyes, leather footwear.`)
       }
       return log(next, 'warn', `PPE confirmed but does not meet the label: ${chk.issues.join('; ')}.`)
     }
     case 'breaker': {
       if (a.closed === s.mccClosed) return s
       if (s.locks.mcc) return log(s, 'warn', 'MCC-3 3B handle will not move: locked.')
-      let next = s
-      const ppe = ppeCheck(s)
-      if (!ppe.adequate) next = violate(next, 'ppe_breaker', ppe.issues[0])
+      let next = requireSuit(s, 'ppe_before_loto')
       if (a.closed) {
         next = { ...next, mccClosed: true }
         return log(next, 'action', 'MCC-3 bucket 3B breaker closed. VFD-101 energized, DC bus charging.')
@@ -684,26 +688,26 @@ export function reduceElec(s: ElecState, a: Action): ElecState {
     case 'lp2': {
       if (a.closed === s.lp2Closed) return s
       if (s.locks.lp2) return log(s, 'warn', 'LP-2 ckt 7 will not move: locked.')
-      const next = { ...s, lp2Closed: a.closed, done: { ...s.done, lp2Opened: s.done.lp2Opened || !a.closed } }
+      const next = { ...requireSuit(s, 'ppe_before_loto'), lp2Closed: a.closed, done: { ...s.done, lp2Opened: s.done.lp2Opened || !a.closed } }
       return log(next, 'action', a.closed ? 'LP-2 ckt 7 closed. 120 V control circuit live, 1M contactor pulled in.' : 'LP-2 ckt 7 opened. 120 V control circuit dead, 1M contactor dropped out.')
     }
     case 'lock': {
       const closed = a.target === 'mcc' ? s.mccClosed : s.lp2Closed
       if (a.on && closed) return log(s, 'warn', `Cannot lock ${a.target === 'mcc' ? 'MCC-3 3B' : 'LP-2 ckt 7'} in the OFF position while it is closed. Open it first.`)
       if (a.on === s.locks[a.target]) return s
-      let next: ElecState = { ...s, locks: { ...s.locks, [a.target]: a.on } }
+      let next: ElecState = { ...(a.on ? requireSuit(s, 'ppe_before_loto') : s), locks: { ...s.locks, [a.target]: a.on } }
       if (a.on) next = { ...next, done: { ...next.done, [a.target === 'mcc' ? 'mccLocked' : 'lp2Locked']: true } }
       if (!a.on && !restored(s)) next = violate(next, 'locks_early')
       return log(next, 'action', `${a.on ? 'Applied' : 'Removed'} personal lock on ${a.target === 'mcc' ? 'MCC-3 bucket 3B handle' : 'LP-2 ckt 7 breaker lockout'}.`)
     }
     case 'tag': {
       if (a.on === s.tags[a.target]) return s
-      const next: ElecState = { ...s, tags: { ...s.tags, [a.target]: a.on }, done: a.on ? { ...s.done, [a.target === 'mcc' ? 'mccTagged' : 'lp2Tagged']: true } : s.done }
+      const next: ElecState = { ...(a.on ? requireSuit(s, 'ppe_before_loto') : s), tags: { ...s.tags, [a.target]: a.on }, done: a.on ? { ...s.done, [a.target === 'mcc' ? 'mccTagged' : 'lp2Tagged']: true } : s.done }
       return log(next, 'action', `${a.on ? 'Hung' : 'Removed'} danger tag on ${a.target === 'mcc' ? 'MCC-3 3B' : 'LP-2 ckt 7'}: name, date, "Do not operate – VFD-101 ground fault".`)
     }
     case 'tryStart': {
       if (s.locks.mcc && s.locks.lp2 && !s.mccClosed && !s.lp2Closed) {
-        return log({ ...s, tryStepDone: true }, 'action', 'Try-step: MCC-3 3B handle will not move with the lock on. LP-2 ckt 7 locked. RUN pressed on the keypad: no response. Equipment cannot be restarted.')
+        return log({ ...requireSuit(s, 'ppe_before_loto'), tryStepDone: true }, 'action', 'Try-step: MCC-3 3B handle will not move with the lock on. LP-2 ckt 7 locked. RUN pressed on the keypad: no response. Equipment cannot be restarted.')
       }
       if (!s.mccClosed && !s.locks.mcc) {
         let next = violate(s, 'reenergized')
@@ -732,10 +736,7 @@ export function reduceElec(s: ElecState, a: Action): ElecState {
     case 'door': {
       if (a.open === s.doorOpen) return s
       let next = s
-      if (a.open && s.mccClosed) {
-        const ppe = ppeCheck(s)
-        if (!ppe.adequate) next = violate(next, 'ppe_door', ppe.issues[0])
-      }
+      if (a.open && s.mccClosed) next = requireSuit(next, 'ppe_door')
       next = { ...next, doorOpen: a.open }
       return log(next, 'action', a.open ? `Opened VFD-101 cabinet door. CHARGE lamp ${chargeLampOn(s) ? 'LIT' : 'off'}.` : 'Closed VFD-101 cabinet door.')
     }

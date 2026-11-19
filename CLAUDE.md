@@ -68,7 +68,9 @@ Model notes worth knowing before touching it:
 - Insulation model is a node graph: cable1-3 and motor1-3, joined by bolted feeder lugs and the T4-T5-T6 wye bar.
   Resistance to ground of a group = parallel of its members. Phase to phase inside one group = 0.00 MΩ (continuity).
   Opening the wye bar is what localizes a winding fault.
-- Violations are recorded once each with a count; `requireHandsOn()` is the gate for any hands-on action.
+- Violations are recorded once each with a count; `requireHandsOn()` is the gate for any hands-on action, and
+  `requireSuit()` / `suitedUp()` gate every LOTO action (breakers, locks, tags, try-step, energized door, testing):
+  the technician must dress the worker figure (`ui/Worker.tsx`) and confirm the kit against the label first.
 - `done` flags record history for scoring after restoration (locks removed, breaker closed again).
 
 ## Deploy

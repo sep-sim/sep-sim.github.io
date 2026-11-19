@@ -90,10 +90,18 @@ describe('PPE', () => {
     expect(scoreElec(run(base, ...FULL_PPE, { type: 'readLabel' }, { type: 'finish' })).lines[0].points).toBe(15)
   })
 
-  it('operating the breaker without PPE is a violation', () => {
-    const s = run(createElecSession(byId('term-fault')), { type: 'breaker', closed: false })
-    expect(s.violations.map((v) => v.id)).toContain('ppe_breaker')
-    expect(s.mccClosed).toBe(false)
+  it('any lockout action before a confirmed suit-up is a violation, even with the right gear on', () => {
+    const bare = run(createElecSession(byId('term-fault')), { type: 'breaker', closed: false })
+    expect(bare.violations.map((v) => v.id)).toContain('ppe_before_loto')
+    expect(bare.mccClosed).toBe(false)
+    const dressedNotConfirmed = run(createElecSession(byId('term-fault')), ...FULL_PPE.slice(0, -1), { type: 'lp2', closed: false })
+    expect(dressedNotConfirmed.violations.map((v) => v.id)).toContain('ppe_before_loto')
+    const suited = run(createElecSession(byId('term-fault')), ...FULL_PPE, { type: 'lp2', closed: false }, { type: 'lock', target: 'lp2', on: true }, { type: 'tag', target: 'lp2', on: true })
+    expect(suited.violations).toEqual([])
+    // taking the gloves off after confirming voids the suit-up
+    const undone = run(suited, { type: 'ppe', id: 'gloves00', on: false }, { type: 'breaker', closed: false })
+    expect(undone.violations.map((v) => v.id)).toContain('ppe_before_loto')
+    expect(scoreElec(run(undone, { type: 'finish' })).lines[0].points).toBeLessThanOrEqual(10)
   })
 })
 
