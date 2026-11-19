@@ -219,7 +219,7 @@ svg.worker { width: 160px; height: 342px; border-radius: 10px; background: #fff;
 /* suit-up layout: figure scales with its column and never covers the fields */
 .suitup-top { grid-template-columns: 140px minmax(0, 1fr); }
 .suitup-figure { width: 140px; min-width: 0; }
-svg.worker { width: 100%; height: auto; max-height: 300px; aspect-ratio: 300 / 640; }
+svg.worker { width: 100%; height: auto; max-height: 300px; aspect-ratio: 192 / 430; }
 .suitup-label { min-width: 0; }
 @media (max-width: 900px) {
   .suitup-top { grid-template-columns: 1fr; justify-items: center; }
