@@ -99,7 +99,7 @@ export function MeggerS1({ state, dispatch }: Props) {
           <div className="mg-main">
             <div className="mg-side">
               <button className="mg-key" title="Graph">📈</button>
-              <div className="mg-mains"><span>🔌</span><i className={state.scene === 'mcc' ? 'on' : ''} /></div>
+              <div className="mg-mains"><span>🔌</span><i className={state.scene === 'room' ? 'on' : ''} /></div>
             </div>
             <div className={`mg-lcd ${off ? 'off' : ''}`}>
               <div className="mg-lcd-top"><span>{off ? '' : `${modeLabel}  ${kv}`}</span><span>{live ? 'TESTING' : m.result ? 'COMPLETE' : ''}</span></div>
@@ -176,7 +176,7 @@ export function MeggerS1({ state, dispatch }: Props) {
         {live && <button onClick={() => dispatch({ type: 'wait', minutes: 1 })}>⏩ 1 min</button>}
       </div>
       <p className="muted small">
-        {off && 'Turn the voltage knob to a test voltage. 500 V for a 460 V winding.'}
+        {off && 'Turn the voltage knob to a test voltage. IEEE 43: 2.5 kV for a 4160 V winding; 5 kV is the ceiling.'}
         {!off && 'With the Megger tab open, tapping a point in the scene connects the − lead (conductor under test) first, then the + lead (earth). TEST starts and stops. IR runs until stopped; IR(t) and DAR run 60 s; PI runs 10 min and reports R10min/R1min. Good insulation climbs during the test; wet or faulted insulation stays flat.'}
       </p>
     </div>

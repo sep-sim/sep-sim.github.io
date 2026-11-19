@@ -65,10 +65,11 @@ function Menu({ onPick }: { onPick: (p: Pick) => void }) {
     <div className="menu">
       <h1><span className="brand">SEPSim</span> · I&amp;E field training</h1>
       <div className="menu-section">
-        <h2>Electrical · VFD ground fault, lockout, verification, insulation testing</h2>
+        <h2>Electrical · 4160 V VFD ground fault, lockout, verification, insulation testing</h2>
         <p className="muted">
-          Toshiba VF-AS3 on a 100 HP pump. Read the label, dress for it, isolate both sources, prove zero energy, lift the leads, meg,
-          then open the terminal box and find out whether it is the termination, the cable, or a winding.
+          Toshiba JK-series medium voltage controller on a 4000 HP pump, with bypass, a 480 V CENTERLINE MCC for the auxiliaries and
+          120 V control. Read the label, dress for it, isolate four sources, prove zero energy with the TIC on the 4160 V side and
+          the 789 on the low voltage side, lift the motor leads, meg at 2.5 kV, then open the terminal box and localize the fault.
         </p>
         <div className="row"><button className="primary" onClick={() => onPick({ kind: 'elec', s: pickRandomElecScenario() })}>Random work order</button></div>
         <div className="cards">

@@ -50,21 +50,28 @@ solution path added to its `solutions` map.
 
 ## Electrical module (`src/electrical/`)
 
-Second scenario family: VFD-101 (Toshiba VF-AS3, 100 HP) ground fault on pump P-101. Separate engine, same app.
+Second scenario family: VFD #2, a Toshiba JK-series 4160 V medium voltage controller (power isolation switch, VFD, M12 bypass,
+M32 output isolation contactor) on pump P-310 (4000 HP), with a CENTERLINE 2100 480 V MCC for the drive auxiliaries and
+120 V control from panelboard LP-1. Separate engine, same app.
 
 ```
 src/electrical/types.ts      points, scenes, PPE catalog, arc label, diagnosis/repair/checklist catalogs, ElecState
-src/electrical/engine.ts     reducer + physics: busVolts() decay, voltageBetween(), ppeCheck(), insulationTest(), absorption(), PENALTY table
+src/electrical/engine.ts     reducer + physics: linkVolts() cell decay, voltageBetween(), ppeCheck(), insulationTest(), absorption(), PENALTY table
 src/electrical/score.ts      rubric: hazard/PPE 20, LOTO+verification 35, testing+diagnosis 25, restoration 10, efficiency 10, penalties
 src/electrical/scenarios.ts  3 work orders: termination fault, winding fault, cable fault
-src/electrical/ui/           ElecSim (layout), MccScene / DriveScene / MotorScene (SVG "in the field" views),
+src/electrical/ui/           ElecSim (layout), RoomScene / CompartmentScene / MotorScene (SVG "in the field" views),
                              Fluke789Elec (the shared 789 face wired to this module), MeggerS1 (S1-568: IR, IR(t), DAR, PI with absorption model), Panels, ArcLabel modal
 ```
 
 Model notes worth knowing before touching it:
-- Two energy sources: MCC-3 3B (480 V) and LP-2 ckt 7 (120 V control). The output isolation contactor 1M is held in by
-  control power, so megging motor leads still landed on 1M with LP-2 live puts test voltage into the drive (`meg_into_drive`).
-- DC bus: 648 V while closed, decays with τ = 180 s after opening; CHARGE lamp > 50 V. V AC on the bus reads ~2 V (trap).
+- Four energy sources (`LOCK_TARGETS`): mv (4160 V power isolation switch), bypass (4160 V M12), aux (480 V bucket 3B),
+  ctrl (120 V LP-1 ckt 7). The M32 output isolation contactor is held in by control power, so megging motor leads still
+  landed on the connection bus with ctrl live puts test voltage into the drive cells (`meg_into_drive`).
+- Drive cells: 5600 V while the MV switch is closed, decay with τ = 180 s after opening; CHARGE lamps > 50 V. No hand-meter
+  point on the cells; the hands-on gate uses the lamps.
+- Instruments by voltage: the 789 on a 4160 V point is `dmm_on_mv`; the TIC counts only on HIGH range at MV points (LOW picks
+  up the live bus, `tic_low_range_mv`); TIC on a 480/120 V point records nothing. `REQUIRED_DEAD` names the instrument per point.
+- Megger: `scenario.megVolts` (2.5 kV min, 5 kV max) drives `meg_low_volts` / `meg_high_volts`.
 - Insulation model is a node graph: cable1-3 and motor1-3, joined by bolted feeder lugs and the T4-T5-T6 wye bar.
   Resistance to ground of a group = parallel of its members. Phase to phase inside one group = 0.00 MΩ (continuity).
   Opening the wye bar is what localizes a winding fault.

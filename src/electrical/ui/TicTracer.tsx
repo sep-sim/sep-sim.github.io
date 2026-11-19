@@ -37,9 +37,10 @@ export function TicTracer({ state, dispatch }: Props) {
         {t.on && t.last != null && (t.last.detected ? `⚡ BEEP · ${POINT_LABEL[t.last.point]}` : `no indication · ${POINT_LABEL[t.last.point]}`)}
       </div>
       <p className="muted small">
-        Non-contact AC detector for systems over 1,000 V. Press TEST for the self-test, prove it on a known live source, then hold the
-        tip at each conductor: tap the point in the scene. HIGH is the range above 1,500 V; LOW below. It cannot see DC. On 480 V
-        equipment like this job it is not the verification instrument: use the Fluke 789 by contact, live-dead-live.
+        Non-contact AC detector, the verification instrument for the 4160 V side. Press TEST for the self-test, prove it on the live
+        M42 window, then hold the tip at each 4160 V conductor on HIGH range: tap the point in the scene. LOW range inside an MV
+        compartment picks up the adjacent live bus and proves nothing. Re-prove on the M42 window when done. The 480 V and 120 V
+        points are the Fluke 789's job.
       </p>
     </div>
   )

@@ -1,10 +1,12 @@
-// Electrical safety engine: energy sources, LOTO state, voltages a meter would see, insulation testing on a
-// 6-lead motor circuit, and every technician action with its NFPA 70E consequences.
+// Electrical safety engine, medium-voltage edition: a 4160 V VFD with bypass on a 4000 HP pump motor, fed auxiliaries
+// from a 480 V MCC and control from 120 V. Energy state, LOTO across four sources, what each instrument sees,
+// insulation testing on a 6-lead motor circuit, and every technician action with its NFPA 70E consequence.
 
 import type {
-  DeadTest, DiagnosisId, ElecScenario, ElecState, LockTarget, LogKind, MeggerLeadId, MeggerMode, MeggerResult, MeggerVolts, MeterKey, MeterMode, Point, PpeId, RepairId, Scene, TicRange,
+  DeadTest, DiagnosisId, ElecScenario, ElecState, LockTarget, LogKind, MeggerLeadId, MeggerMode, MeggerResult, MeggerVolts,
+  MeterKey, MeterMode, Point, PpeId, RepairId, Scene, TicRange,
 } from './types'
-import { CHECKLIST, DIAGNOSES, POINT_LABEL, POINT_SCENE, PPE_ITEMS, REPAIRS } from './types'
+import { CHECKLIST, DIAGNOSES, LOCK_TARGETS, POINT_LABEL, POINT_SCENE, PPE_ITEMS, REPAIRS } from './types'
 
 // ---- actions ------------------------------------------------------------------------------------
 
@@ -16,13 +18,13 @@ export type Action =
   | { type: 'readLabel' }
   | { type: 'ppe'; id: PpeId; on: boolean }
   | { type: 'ppeConfirm' }
-  | { type: 'breaker'; closed: boolean }
-  | { type: 'lp2'; closed: boolean }
+  | { type: 'switch'; target: LockTarget; closed: boolean }
   | { type: 'lock'; target: LockTarget; on: boolean }
   | { type: 'tag'; target: LockTarget; on: boolean }
   | { type: 'tryStart' }
-  | { type: 'keypad'; key: 'RUN' | 'STOP' | 'RESET' }
+  | { type: 'relay'; key: 'START' | 'STOP' | 'RESET' }
   | { type: 'door'; open: boolean }
+  | { type: 'auxDoor'; open: boolean }
   | { type: 'meterMode'; mode: MeterMode }
   | { type: 'meterKey'; key: MeterKey }
   | { type: 'probe'; point: Point }
@@ -51,26 +53,24 @@ export type Action =
 export const PENALTY: Record<string, { points: number; label: string }> = {
   ppe_before_loto: { points: -20, label: 'Started isolating equipment before suiting up in the PPE the label calls for' },
   ppe_test: { points: -20, label: 'Voltage testing on unverified conductors without the PPE the label calls for' },
-  ppe_door: { points: -15, label: 'Opened the drive cabinet energized without the PPE the label calls for' },
-  no_prove_before: { points: -10, label: 'Absence-of-voltage test without proving the meter on a known source first' },
-  no_prove_after: { points: -10, label: 'Meter not re-proved after testing dead' },
-  bus_ac_only: { points: -10, label: 'DC bus checked with AC volts only (reads zero even at 650 V DC)' },
-  bus_tic_only: { points: -10, label: 'DC bus checked with a non-contact AC detector only: it cannot see DC' },
-  tic_high_range: { points: -15, label: 'TIC 300 PRO on HIGH range at 480 V: threshold is 1500 V, a live bus reads dead' },
+  ppe_door: { points: -15, label: 'Opened an energized compartment without the PPE the label calls for' },
+  dmm_on_mv: { points: -20, label: 'Contact meter rated CAT III 1000 V placed on 4160 V conductors' },
+  tic_low_range_mv: { points: -5, label: 'TIC 300 PRO on LOW range at 4160 V: it picks up the adjacent live bus, HIGH is the range for MV' },
   tic_no_selftest: { points: -5, label: 'Non-contact detector used without a self-test first' },
+  no_prove_before: { points: -10, label: 'Absence-of-voltage test without proving the instrument on a known source first' },
+  no_prove_after: { points: -10, label: 'Instrument not re-proved after testing dead' },
   work_not_verified: { points: -20, label: 'Hands on conductors before absence of voltage was verified' },
-  work_not_locked: { points: -15, label: 'Hands on conductors before lockout was applied' },
-  bus_charged: { points: -10, label: 'Worked on terminals with the DC bus above 50 V (CHARGE lamp lit)' },
+  work_not_locked: { points: -15, label: 'Hands on conductors before lockout of every source was applied' },
+  cells_charged: { points: -10, label: 'Worked in the motor connection compartment with the drive cell capacitors still charged' },
   reenergized: { points: -15, label: 'Re-energized the equipment while attempting a try-step without a lock' },
-  meg_into_drive: { points: -30, label: 'Insulation test applied with the drive output connected: IGBTs destroyed' },
+  meg_into_drive: { points: -30, label: 'Insulation test applied with the drive output still connected: output cells destroyed' },
   meg_through_contactor: { points: -10, label: 'Insulation test through an open contactor instead of lifted leads' },
-  meg_low_volts: { points: -5, label: 'Insulation test voltage too low for a 460 V motor (use 500 V)' },
-  meg_high_volts: { points: -5, label: 'Insulation test voltage too high for a 460 V winding (2.5 kV and up overstresses it)' },
+  meg_low_volts: { points: -5, label: 'Insulation test voltage too low for a 4160 V motor (IEEE 43: 2.5 kV)' },
+  meg_high_volts: { points: -5, label: 'Insulation test voltage above the acceptable range for this winding' },
   meg_polarity: { points: 0, label: 'Megger leads reversed: − lead belongs on the conductor, + to earth' },
-  meg_not_verified: { points: -10, label: 'Insulation test on a circuit not verified de-energized' },
   locks_early: { points: -10, label: 'Lockout removed before the equipment was restored and clear' },
-  ctrl_live_touch: { points: -10, label: 'Control circuit left energized while working in the cabinet' },
-  run_not_restored: { points: -5, label: 'Attempted to run the drive before the circuit was reconnected' },
+  ctrl_live_touch: { points: -10, label: 'Control circuit left energized while working in the compartment' },
+  run_not_restored: { points: -5, label: 'Attempted to start the drive before the circuit was reconnected' },
 }
 
 // ---- helpers ------------------------------------------------------------------------------------
@@ -90,31 +90,38 @@ function fmtT(t: number): string {
   return `${Math.floor(t / 60)}m${String(t % 60).padStart(2, '0')}s`
 }
 
+export function targetLabel(t: LockTarget): string {
+  return LOCK_TARGETS.find((x) => x.id === t)!.label
+}
+
 export function createElecSession(scenario: ElecScenario): ElecState {
   const s: ElecState = {
     scenario,
     t: 0,
     log: [],
-    scene: 'mcc',
+    scene: 'room',
     checklist: Object.fromEntries(CHECKLIST.map((c) => [c.id, false])),
     labelRead: false,
     ppe: ['cotton', 'boots'],
     ppeConfirmed: null,
-    mccClosed: true,
-    lp2Closed: true,
-    locks: { mcc: false, lp2: false },
-    tags: { mcc: false, lp2: false },
+    closed: { mv: true, bypass: true, aux: true, ctrl: true },
+    locks: { mv: false, bypass: false, aux: false, ctrl: false },
+    tags: { mv: false, bypass: false, aux: false, ctrl: false },
+    done: {
+      mv: { opened: false, locked: false, tagged: false }, bypass: { opened: false, locked: false, tagged: false },
+      aux: { opened: false, locked: false, tagged: false }, ctrl: { opened: false, locked: false, tagged: false },
+    },
     tOff: null,
-    busAtOff: 0,
+    linkAtOff: 0,
     tryStepDone: false,
-    done: { breakerOpened: false, lp2Opened: false, mccLocked: false, mccTagged: false, lp2Locked: false, lp2Tagged: false },
     doorOpen: false,
+    auxDoorOpen: false,
     drive: { faulted: true, running: false, damaged: false, display: scenario.drive.faultCode },
     leadsLifted: false,
     jbox: { coverOff: false, feedersUnbolted: false, lugsCleared: false, wyeOpen: false, inspected: false },
     meter: { mode: 'OFF', probeA: null, probeB: null, held: null, rel: null, manualRange: false, backlight: false },
     megger: { mode: 'OFF', volts: 500, minus: null, plus: null, testing: false, tStart: null, result: null, inhibit: null },
-    tic: { on: false, range: 'LOW', selfTestAt: null, last: null, busChecked: false },
+    tic: { on: false, range: 'LOW', selfTestAt: null, last: null },
     proofs: [],
     deadTests: [],
     insTests: [],
@@ -130,25 +137,27 @@ export function createElecSession(scenario: ElecScenario): ElecState {
 
 // ---- energy state -------------------------------------------------------------------------------
 
-/** DC bus voltage. Charged from the line; decays through the bleeder once the breaker opens (τ ≈ 3 min). */
-export function busVolts(s: ElecState): number {
-  if (s.mccClosed) return 648
+/** Drive cell capacitor voltage. Held up by the 4160 V incoming; bleeds down after the isolation switch opens (τ = 3 min, below 50 V inside the 15 minutes Toshiba calls for). */
+export function linkVolts(s: ElecState): number {
+  if (s.closed.mv) return 5600
   if (s.tOff == null) return 0
-  return s.busAtOff * Math.exp(-(s.t - s.tOff) / 180)
+  return s.linkAtOff * Math.exp(-(s.t - s.tOff) / 180)
 }
 
 export function chargeLampOn(s: ElecState): boolean {
-  return busVolts(s) > 50
+  return linkVolts(s) > 50
 }
 
-/** Output isolation contactor 1M is held in by the 120 V control circuit. */
+/** Output isolation contactor M32 is held in by the 120 V control circuit. */
 export function contactorClosed(s: ElecState): boolean {
-  return s.lp2Closed
+  return s.closed.ctrl
 }
 
-export function keypadLit(s: ElecState): boolean {
-  return s.mccClosed || busVolts(s) > 200
+export function relayLit(s: ElecState): boolean {
+  return s.closed.ctrl
 }
+
+export const MV_POINTS: Point[] = ['BP_L1', 'BP_L2', 'BP_L3', 'VO_1', 'VO_2', 'VO_3', 'U', 'V', 'W', 'PROVE_MV']
 
 type Phasor = [number, number]
 
@@ -156,57 +165,65 @@ function acPhasor(s: ElecState, p: Point): Phasor {
   const ph = (mag: number, deg: number): Phasor => [mag * Math.cos((deg * Math.PI) / 180), mag * Math.sin((deg * Math.PI) / 180)]
   switch (p) {
     case 'RECEPT_H': return [120, 0]
-    case 'CTRL_H': return s.lp2Closed ? [120, 0] : [0, 0]
-    case 'L1': return s.mccClosed ? ph(277, 0) : [0, 0]
-    case 'L2': return s.mccClosed ? ph(277, -120) : [0, 0]
-    case 'L3': return s.mccClosed ? ph(277, 120) : [0, 0]
+    case 'CTRL_H': return s.closed.ctrl ? [120, 0] : [0, 0]
+    case 'AUX_T1': return s.closed.aux ? ph(277, 0) : [0, 0]
+    case 'AUX_T2': return s.closed.aux ? ph(277, -120) : [0, 0]
+    case 'AUX_T3': return s.closed.aux ? ph(277, 120) : [0, 0]
+    case 'BP_L1': return s.closed.bypass ? ph(2400, 0) : [0, 0]
+    case 'BP_L2': return s.closed.bypass ? ph(2400, -120) : [0, 0]
+    case 'BP_L3': return s.closed.bypass ? ph(2400, 120) : [0, 0]
+    case 'PROVE_MV': return ph(2400, 0)
+    // drive output and the motor connection are only live while the drive runs or the bypass contactor is in
+    case 'VO_1': case 'U': return s.drive.running ? ph(2400, 0) : [0, 0]
+    case 'VO_2': case 'V': return s.drive.running ? ph(2400, -120) : [0, 0]
+    case 'VO_3': case 'W': return s.drive.running ? ph(2400, 120) : [0, 0]
     default: return [0, 0]
   }
 }
 
-function dcLevel(s: ElecState, p: Point): number {
-  const bus = busVolts(s)
-  if (p === 'DC_P') return bus / 2
-  if (p === 'DC_N') return -bus / 2
-  return 0
-}
-
-/** Volts the meter reads between two points, AC and DC components. */
+/** Volts between two points. There is no DC point a hand meter can reach in this controller. */
 export function voltageBetween(s: ElecState, a: Point, b: Point): { ac: number; dc: number } {
   const pa = acPhasor(s, a)
   const pb = acPhasor(s, b)
-  let ac = Math.hypot(pa[0] - pb[0], pa[1] - pb[1])
-  const dc = dcLevel(s, a) - dcLevel(s, b)
-  // a charged DC bus shows a little ripple on an AC range
-  if ((a === 'DC_P' || a === 'DC_N' || b === 'DC_P' || b === 'DC_N') && Math.abs(dc) > 50) ac = Math.max(ac, 2.1)
-  return { ac, dc }
+  return { ac: Math.hypot(pa[0] - pb[0], pa[1] - pb[1]), dc: 0 }
 }
 
 export function isLive(s: ElecState, a: Point, b: Point): boolean {
-  const v = voltageBetween(s, a, b)
-  return v.ac > 30 || Math.abs(v.dc) > 30
+  return voltageBetween(s, a, b).ac > 30
+}
+
+/** AC volts to ground a non-contact detector sees at a point. */
+export function ticVolts(s: ElecState, p: Point): number {
+  const ph = acPhasor(s, p)
+  return Math.hypot(ph[0], ph[1])
+}
+
+/** Any 4160 V source still live near the motor connection compartment. */
+export function mvLiveNearby(s: ElecState): boolean {
+  return s.closed.bypass || s.closed.mv || s.drive.running
 }
 
 // ---- PPE -----------------------------------------------------------------------------------------
 
 export function ppeCheck(s: ElecState): { adequate: boolean; issues: string[]; bodyRating: number } {
   const worn = new Set(s.ppe)
-  const ie = s.scenario.label.incidentEnergy
+  const l = s.scenario.label
   const issues: string[] = []
   const body = PPE_ITEMS.filter((p) => p.slot === 'body' && worn.has(p.id)).reduce((m, p) => Math.max(m, p.arcRating ?? 0), 0)
-  if (body < ie) issues.push(`Body arc rating ${body} cal/cm² is below the ${ie} cal/cm² incident energy`)
+  if (body < l.incidentEnergy) issues.push(`Body arc rating ${body} cal/cm² is below the ${l.incidentEnergy} cal/cm² incident energy`)
   const hood = worn.has('suit40')
   if (!hood) {
     if (!worn.has('faceshield')) issues.push('No arc-rated face and head protection')
-    else if (12 < ie) issues.push('Face shield rating below incident energy')
+    else if (12 < l.incidentEnergy) issues.push('Face shield rating below incident energy; this label needs the arc flash hood')
   }
   if (!worn.has('hardhat')) issues.push('No hard hat')
   if (!worn.has('glasses')) issues.push('No safety glasses')
   if (!worn.has('hearing')) issues.push('No hearing protection')
-  const glove = PPE_ITEMS.find((p) => p.slot === 'hands' && p.shockOk && worn.has(p.id))
-  if (!glove) issues.push('No voltage-rated gloves (class 00 or higher required for 480 V shock exposure)')
-  else if ((glove.maxUseAc ?? 0) < s.scenario.label.voltage) issues.push(`Class ${glove.gloveClass} gloves are rated ${glove.maxUseAc} V, below ${s.scenario.label.voltage} V`)
   if (!worn.has('boots')) issues.push('No leather footwear')
+  const glove = PPE_ITEMS.find((p) => p.slot === 'hands' && p.shockOk && worn.has(p.id))
+  if (!glove) issues.push(`No voltage-rated gloves (class ${l.gloveClass} required for ${l.voltage} V shock exposure)`)
+  else if ((glove.maxUseAc ?? 0) < l.voltage) issues.push(`Class ${glove.gloveClass} gloves are rated ${glove.maxUseAc} V, below ${l.voltage} V`)
+  else if ((glove.gloveRank ?? 0) < l.gloveRank) issues.push(`Class ${glove.gloveClass} gloves are below the class ${l.gloveClass} the label calls for`)
   return { adequate: issues.length === 0, issues, bodyRating: body }
 }
 
@@ -225,35 +242,39 @@ function requireSuit(s: ElecState, id: string): ElecState {
 // ---- verification tracking ------------------------------------------------------------------------
 
 /**
- * Absence-of-voltage checks that must be done before hands go on conductors. AC points accept either the TIC 300 PRO on
- * LOW range or the 789 on V AC to ground. The DC bus is DC: only the 789 on V DC proves it, a non-contact detector sees nothing.
+ * Absence-of-voltage checks required before hands go on conductors. The 4160 V points take the TIC 300 PRO on HIGH range
+ * (a contact meter rated 1000 V has no business there). The 480 V and 120 V points take the Fluke 789 on V AC.
  */
-export const REQUIRED_DEAD: { a: Point; b: Point; mode: MeterMode; tic: boolean; label: string }[] = [
-  { a: 'L1', b: 'GND', mode: 'VAC', tic: true, label: 'R/L1 to ground' },
-  { a: 'L2', b: 'GND', mode: 'VAC', tic: true, label: 'S/L2 to ground' },
-  { a: 'L3', b: 'GND', mode: 'VAC', tic: true, label: 'T/L3 to ground' },
-  { a: 'CTRL_H', b: 'CTRL_N', mode: 'VAC', tic: true, label: 'X1-1 120 V control' },
-  { a: 'DC_P', b: 'DC_N', mode: 'VDC', tic: false, label: 'DC bus PA/+ to PC/− (V DC only)' },
+export const REQUIRED_DEAD: { a: Point; b: Point; instrument: 'tic' | 'dmm'; label: string }[] = [
+  { a: 'BP_L1', b: 'GND', instrument: 'tic', label: 'Bypass stab L1 (4160 V)' },
+  { a: 'BP_L2', b: 'GND', instrument: 'tic', label: 'Bypass stab L2 (4160 V)' },
+  { a: 'BP_L3', b: 'GND', instrument: 'tic', label: 'Bypass stab L3 (4160 V)' },
+  { a: 'VO_1', b: 'GND', instrument: 'tic', label: 'VFD output termination 1' },
+  { a: 'VO_2', b: 'GND', instrument: 'tic', label: 'VFD output termination 2' },
+  { a: 'VO_3', b: 'GND', instrument: 'tic', label: 'VFD output termination 3' },
+  { a: 'U', b: 'GND', instrument: 'tic', label: 'Motor connection U' },
+  { a: 'V', b: 'GND', instrument: 'tic', label: 'Motor connection V' },
+  { a: 'W', b: 'GND', instrument: 'tic', label: 'Motor connection W' },
+  { a: 'AUX_T1', b: 'AUX_G', instrument: 'dmm', label: 'Aux bucket T1 to ground (480 V)' },
+  { a: 'AUX_T2', b: 'AUX_G', instrument: 'dmm', label: 'Aux bucket T2 to ground (480 V)' },
+  { a: 'AUX_T3', b: 'AUX_G', instrument: 'dmm', label: 'Aux bucket T3 to ground (480 V)' },
+  { a: 'CTRL_H', b: 'CTRL_N', instrument: 'dmm', label: 'Control X1-1 to neutral (120 V)' },
 ]
 
 function pairKey(a: Point, b: Point): string {
   return [a, b].sort().join('-')
 }
 
-/** Site procedure: the TIC 300 PRO is the verification instrument only on systems over 1,000 V. */
-export function ticAllowed(s: ElecState): boolean {
-  return s.scenario.label.voltage > 1000
-}
-
-function satisfies(s: ElecState, r: (typeof REQUIRED_DEAD)[number], d: DeadTest): boolean {
-  if (d.instrument === 'tic') return r.tic && ticAllowed(s) && d.a === r.a
-  if (d.mode !== r.mode) return false
-  if (r.a === 'CTRL_H') return (d.a === 'CTRL_H' || d.b === 'CTRL_H') && (d.a === 'CTRL_N' || d.b === 'CTRL_N' || d.a === 'GND' || d.b === 'GND')
+function satisfies(r: (typeof REQUIRED_DEAD)[number], d: DeadTest): boolean {
+  if (d.instrument !== r.instrument) return false
+  if (d.instrument === 'tic') return d.a === r.a
+  if (d.mode !== 'VAC') return false
+  if (r.a === 'CTRL_H') return (d.a === 'CTRL_H' || d.b === 'CTRL_H') && (d.a === 'CTRL_N' || d.b === 'CTRL_N')
   return pairKey(d.a, d.b) === pairKey(r.a, r.b)
 }
 
 export function deadTestDone(s: ElecState, r: (typeof REQUIRED_DEAD)[number]): boolean {
-  return s.deadTests.some((d) => satisfies(s, r, d))
+  return s.deadTests.some((d) => satisfies(r, d))
 }
 
 export function verifiedDead(s: ElecState): boolean {
@@ -261,7 +282,7 @@ export function verifiedDead(s: ElecState): boolean {
 }
 
 function requiredRecords(s: ElecState): DeadTest[] {
-  return s.deadTests.filter((d) => REQUIRED_DEAD.some((r) => satisfies(s, r, d)))
+  return s.deadTests.filter((d) => REQUIRED_DEAD.some((r) => satisfies(r, d)))
 }
 
 export function provedBefore(s: ElecState): boolean {
@@ -278,7 +299,7 @@ export function provedAfter(s: ElecState): boolean {
 }
 
 export function lockedOut(s: ElecState): boolean {
-  return !s.mccClosed && !s.lp2Closed && s.locks.mcc && s.locks.lp2
+  return LOCK_TARGETS.every((t) => !s.closed[t.id] && s.locks[t.id])
 }
 
 /** Electrically safe work condition per 70E 120.5: isolated, locked, tried, stored energy released, verified. */
@@ -300,9 +321,9 @@ type NodeId = 'cable1' | 'cable2' | 'cable3' | 'motor1' | 'motor2' | 'motor3'
 
 function pointNode(p: Point): NodeId | null {
   switch (p) {
-    case 'C_T1': case 'CBL_1': return 'cable1'
-    case 'C_T2': case 'CBL_2': return 'cable2'
-    case 'C_T3': case 'CBL_3': return 'cable3'
+    case 'U': case 'CBL_1': return 'cable1'
+    case 'V': case 'CBL_2': return 'cable2'
+    case 'W': case 'CBL_3': return 'cable3'
     case 'T1': case 'T4': return 'motor1'
     case 'T2': case 'T5': return 'motor2'
     case 'T3': case 'T6': return 'motor3'
@@ -310,7 +331,6 @@ function pointNode(p: Point): NodeId | null {
   }
 }
 
-/** Nodes electrically tied to `start` through bolted lugs and the wye point. */
 function group(s: ElecState, start: NodeId): Set<NodeId> {
   const edges: [NodeId, NodeId][] = []
   if (!s.jbox.feedersUnbolted) edges.push(['cable1', 'motor1'], ['cable2', 'motor2'], ['cable3', 'motor3'])
@@ -327,14 +347,14 @@ function group(s: ElecState, start: NodeId): Set<NodeId> {
   return seen
 }
 
-/** Insulation resistance of one node to ground, MΩ. */
+/** Insulation resistance of one node to ground, MΩ, one-minute value. Form-wound 4 kV machine. */
 function nodeToGround(s: ElecState, n: NodeId): number {
   const f = s.scenario.fault
   const cleared = s.faultCleared
   switch (n) {
-    case 'motor1': return 140
-    case 'motor2': return f === 'motor' && !cleared ? 0.3 : 125
-    case 'motor3': return 160
+    case 'motor1': return 2400
+    case 'motor2': return f === 'motor' && !cleared ? 0.3 : 2100
+    case 'motor3': return 2700
     case 'cable1': return OL
     case 'cable2': {
       const rs: number[] = []
@@ -351,8 +371,8 @@ function groupToGround(s: ElecState, g: Set<NodeId>): number {
 }
 
 export function fmtMohm(r: number, volts: MeggerVolts): string {
-  const cap = volts >= 500 ? 2000 : volts >= 250 ? 1000 : 200
-  if (!Number.isFinite(r) || r >= cap) return `OL (> ${cap >= 1000 ? `${cap / 1000}.0 GΩ` : `${cap} MΩ`})`
+  const cap = volts >= 5000 ? 20000 : volts >= 2500 ? 10000 : volts >= 1000 ? 4000 : volts >= 500 ? 2000 : 1000
+  if (!Number.isFinite(r) || r >= cap) return `OL (> ${cap / 1000} GΩ)`
   if (r >= 1000) return `${(r / 1000).toFixed(2)} GΩ`
   if (r >= 10) return `${r.toFixed(0)} MΩ`
   if (r >= 1) return `${r.toFixed(1)} MΩ`
@@ -361,7 +381,6 @@ export function fmtMohm(r: number, volts: MeggerVolts): string {
 
 export interface InsResult {
   ok: boolean
-  /** resistance in MΩ at the 60 s mark; Infinity for over range */
   r: number
   reading: string
   text: string
@@ -378,16 +397,15 @@ export function insulationTest(s: ElecState, minusPt: Point | null = s.megger.mi
   if (POINT_SCENE[a] !== POINT_SCENE[b]) return { ok: false, r: OL, reading: '----', text: 'Leads are in two different places.' }
   if (isLive(s, a, b)) {
     const v = voltageBetween(s, a, b)
-    const shown = v.ac > 30 ? `${v.ac.toFixed(0)} V AC` : `${Math.abs(v.dc).toFixed(0)} V DC`
-    return { ok: false, r: OL, reading: `⚡ ${shown}`, text: `${shown} present between the leads. Test inhibited.` }
+    return { ok: false, r: OL, reading: `⚡ ${v.ac.toFixed(0)} V AC`, text: `${v.ac.toFixed(0)} V AC present between the leads. Test inhibited.` }
   }
 
-  const driveTerminals: Point[] = ['L1', 'L2', 'L3', 'DC_P', 'DC_N', 'U', 'V', 'W']
+  const driveTerminals: Point[] = ['VO_1', 'VO_2', 'VO_3', 'BP_L1', 'BP_L2', 'BP_L3', 'AUX_T1', 'AUX_T2', 'AUX_T3', 'CTRL_H', 'CTRL_N']
   if (driveTerminals.includes(a) || driveTerminals.includes(b)) {
-    return { ok: true, r: 0.6, reading: fmtMohm(0.6, volts), text: 'Test voltage applied straight into the drive terminals.', warnId: 'meg_into_drive', damage: true }
+    return { ok: true, r: 0.6, reading: fmtMohm(0.6, volts), text: 'Test voltage applied into the controller, not the motor circuit.', warnId: 'meg_into_drive', damage: true }
   }
 
-  const ground: Point[] = ['GND', 'FRAME', 'RECEPT_G']
+  const ground: Point[] = ['GND', 'FRAME', 'RECEPT_G', 'AUX_G']
   const na = pointNode(a)
   const nb = pointNode(b)
   const aG = ground.includes(a)
@@ -427,10 +445,7 @@ export function insulationTest(s: ElecState, minusPt: Point | null = s.megger.mi
   return { ok: true, r, reading, text: `${POINT_LABEL[a]} → ${POINT_LABEL[b]}: ${reading}`, warnId, damage, polarityNote }
 }
 
-/**
- * Dielectric absorption: sound insulation keeps climbing after the voltage is applied, contaminated or faulted
- * insulation does not. `r60` is the one-minute value. Shape gives DAR ≈ 1.29 and PI ≈ 2.0 for good windings.
- */
+/** Dielectric absorption: sound insulation keeps climbing, contaminated or faulted insulation does not. `r60` is the one-minute value. */
 export function absorption(r60: number, seconds: number): number {
   if (!Number.isFinite(r60)) return OL
   if (r60 < 1) return r60
@@ -445,7 +460,6 @@ export function leakageNa(r: number, volts: number): number {
 
 export const MEGGER_AUTO_STOP: Partial<Record<MeggerMode, number>> = { IRT: 60, DAR: 60, PI: 600 }
 
-/** Live resistance the Megger shows `seconds` into the running test. */
 export function meggerLive(s: ElecState): { r: number; seconds: number; reading: string } | null {
   const m = s.megger
   if (!m.testing || m.tStart == null) return null
@@ -462,14 +476,14 @@ export function inspectBoxText(s: ElecState): string {
   const parts: string[] = []
   if (f === 'termination' && !s.faultCleared) {
     parts.push('Water line a half inch up the inside of the box, breather grille packed with dust and lint.')
-    parts.push('T2 feeder lug: heat shrink split below the lug, strands flared and resting against the box wall with a black arc mark on the paint.')
-    parts.push('T1 and T3 terminations tight, shrink intact. T4-T5-T6 wye bar tight.')
+    parts.push('L2 feeder termination: stress cone tracking from the cutback down to the lug, a carbon track to the box wall, shrink split below the lug.')
+    parts.push('L1 and L3 terminations clean, shrink intact. T4-T5-T6 wye bar tight.')
   } else if (f === 'motor') {
-    parts.push('Box dry, breather clear. All three feeder lugs torqued, heat shrink intact, phase tape brown/orange/yellow.')
-    parts.push('Faint varnish smell from the motor side. T4-T5-T6 wye bar tight.')
+    parts.push('Box dry, breather clear. All three feeder terminations clean, stress cones intact, phase tape brown/orange/yellow.')
+    parts.push('Varnish smell from the stator side, discoloration at the T2 bushing. T4-T5-T6 wye bar tight.')
   } else if (f === 'cable') {
-    parts.push('Box dry, breather clear. All three feeder lugs torqued, heat shrink intact.')
-    parts.push('Feeder jackets show fresh scuffing where they enter the conduit hub, consistent with cable movement. T4-T5-T6 wye bar tight.')
+    parts.push('Box dry, breather clear. All three terminations clean, stress cones intact.')
+    parts.push('Feeder jackets show fresh scuffing where they enter the conduit hub, consistent with the cable being disturbed. T4-T5-T6 wye bar tight.')
   } else {
     parts.push('Box dry, terminations clean and tight.')
   }
@@ -479,7 +493,7 @@ export function inspectBoxText(s: ElecState): string {
 // ---- reducer -------------------------------------------------------------------------------------------
 
 function restored(s: ElecState): boolean {
-  return !s.leadsLifted && !s.jbox.coverOff && !s.jbox.feedersUnbolted && !s.jbox.wyeOpen && !s.doorOpen
+  return !s.leadsLifted && !s.jbox.coverOff && !s.jbox.feedersUnbolted && !s.jbox.wyeOpen && !s.doorOpen && !s.auxDoorOpen
 }
 
 function meterReadingText(s: ElecState): string | null {
@@ -490,7 +504,7 @@ function meterReadingText(s: ElecState): string | null {
   const v = voltageBetween(s, m.probeA, m.probeB)
   if (m.mode === 'VAC') return `${v.ac.toFixed(1)} V AC`
   if (m.mode === 'VDC') return `${v.dc.toFixed(1)} V DC`
-  if (m.mode === 'mVDC') return Math.abs(v.dc) > 0.3 || v.ac > 0.3 ? 'OL mV DC' : `${(v.dc * 1000).toFixed(1)} mV DC`
+  if (m.mode === 'mVDC') return v.ac > 0.3 ? 'OL mV DC' : '0.0 mV DC'
   if (m.mode === 'OHM') return isLive(s, m.probeA, m.probeB) ? 'OL ⚠ live' : 'OL'
   return '0.000 mA'
 }
@@ -520,6 +534,9 @@ function placeLead(s: ElecState, p: Point): ElecState {
   const m = s.meter
   if (m.mode === 'OFF') return log(s, 'warn', 'Meter is off.')
   if (POINT_SCENE[p] !== s.scene) return s
+  if (MV_POINTS.includes(p)) {
+    return violate({ ...s, meter: { ...m, probeA: null, probeB: null, held: null } }, 'dmm_on_mv', `${POINT_LABEL[p]}. The 789 stays off 4160 V conductors; verify them with the TIC 300 PRO.`)
+  }
   if (m.probeA == null || m.probeB != null) {
     return { ...s, meter: { ...m, probeA: p, probeB: null, held: null } }
   }
@@ -527,12 +544,11 @@ function placeLead(s: ElecState, p: Point): ElecState {
   const b = p
   let next: ElecState = { ...s, meter: { ...m, probeB: b, held: null } }
   if (m.mode === 'mA' || m.mode === 'OUT' || m.mode === 'OUT_AUTO' || m.mode === 'LOOP') {
-    return log(next, 'warn', `789 in a current position at ${POINT_LABEL[a]} → ${POINT_LABEL[b]}: there is no 4-20 mA loop here. Use V AC, V DC or Ω.`)
+    return log(next, 'warn', `789 in a current position at ${POINT_LABEL[a]} → ${POINT_LABEL[b]}: there is no 4-20 mA loop here. Use V AC or Ω.`)
   }
   if (m.mode === 'mVDC') {
     const v = voltageBetween(s, a, b)
-    const txt = Math.abs(v.dc) > 0.3 || v.ac > 0.3 ? 'OL' : `${(v.dc * 1000).toFixed(1)} mV DC`
-    return log({ ...next, tests: next.tests + 1 }, 'measure', `789 mV DC ${POINT_LABEL[a]} → ${POINT_LABEL[b]}: ${txt}`)
+    return log({ ...next, tests: next.tests + 1 }, 'measure', `789 mV DC ${POINT_LABEL[a]} → ${POINT_LABEL[b]}: ${v.ac > 0.3 ? 'OL' : '0.0 mV DC'}`)
   }
   if (m.mode === 'OHM') {
     return log(next, 'measure', `789 Ω ${POINT_LABEL[a]} → ${POINT_LABEL[b]}: ${isLive(s, a, b) ? 'OL (live circuit!)' : 'OL'}`)
@@ -550,8 +566,7 @@ function placeLead(s: ElecState, p: Point): ElecState {
     return log(next, 'measure', `789 ${m.mode === 'VAC' ? 'V AC' : 'V DC'} ${POINT_LABEL[a]} → ${POINT_LABEL[b]}: ${reading}`)
   }
 
-  const scene = POINT_SCENE[a]
-  if (scene === 'drive' && !verifiedDead(s)) next = requireSuit(next, 'ppe_test')
+  if (!verifiedDead(s)) next = requireSuit(next, 'ppe_test')
   const live = m.mode === 'VAC' ? v.ac > 30 : Math.abs(v.dc) > 30
   if (!live) {
     const d: DeadTest = { a, b, mode: m.mode, t: next.t, instrument: 'dmm' }
@@ -559,6 +574,8 @@ function placeLead(s: ElecState, p: Point): ElecState {
   }
   return log(next, 'measure', `789 ${m.mode === 'VAC' ? 'V AC' : 'V DC'} ${POINT_LABEL[a]} → ${POINT_LABEL[b]}: ${reading}${live ? '  ⚡ LIVE' : ''}`)
 }
+
+// ---- Megger -------------------------------------------------------------------------------------------
 
 function meggerStop(s: ElecState): ElecState {
   const m = s.megger
@@ -582,7 +599,7 @@ function meggerStop(s: ElecState): ElecState {
   const extras = [result.dar != null ? `DAR ${result.dar.toFixed(2)}` : '', result.pi != null ? `PI ${result.pi.toFixed(2)}` : ''].filter(Boolean).join(', ')
   const kv = m.volts >= 1000 ? `${m.volts / 1000} kV` : `${m.volts} V`
   next = log(next, 'measure', `Megger ${m.mode === 'IRT' ? 'IR(t)' : m.mode} ${kv} ${seconds}s: ${POINT_LABEL[m.minus!]} → ${POINT_LABEL[m.plus!]} ${result.reading}${extras ? ` (${extras})` : ''}`)
-  return log(next, 'info', `Megger discharging the circuit under test, ${Math.round(m.volts * 0.9)} V falling to 0.`)
+  return log(next, 'info', `Megger discharging the circuit under test, ${Math.round(m.volts * 0.9)} V falling to 0. Keep clear until the display reads safe.`)
 }
 
 function meggerStart(s: ElecState): ElecState {
@@ -592,9 +609,9 @@ function meggerStart(s: ElecState): ElecState {
   const base = insulationTest(s)
   if (!base.ok) return log({ ...s, megger: { ...m, inhibit: base.reading, result: null } }, 'warn', `Megger: ${base.text}`)
   let next: ElecState = { ...s, megger: { ...m, testing: true, tStart: s.t, result: null, inhibit: null }, tests: s.tests + 1 }
-  if (!lockedOut(s) || !verifiedDead(s)) next = violate(next, 'meg_not_verified')
-  if (m.volts < 500) next = violate(next, 'meg_low_volts')
-  if (m.volts >= 2500) next = violate(next, 'meg_high_volts')
+  if (!lockedOut(s) || !verifiedDead(s)) next = violate(next, 'work_not_verified', 'Insulation test started before the circuit was verified dead and locked.')
+  if (m.volts < s.scenario.megVolts.min) next = violate(next, 'meg_low_volts')
+  if (m.volts > s.scenario.megVolts.max) next = violate(next, 'meg_high_volts')
   if (base.polarityNote) next = log(next, 'warn', PENALTY.meg_polarity.label)
   if (base.r === 0) next = log(next, 'info', `Megger: ${base.text}`)
   if (base.warnId) {
@@ -605,7 +622,6 @@ function meggerStart(s: ElecState): ElecState {
   return log(next, 'action', `Megger ${m.mode === 'IRT' ? 'IR(t)' : m.mode} test started at ${kv}: ${POINT_LABEL[m.minus!]} (−) → ${POINT_LABEL[m.plus!]} (+).`)
 }
 
-/** Advance a running test; auto-stop timed modes. */
 function meggerTick(s: ElecState): ElecState {
   const m = s.megger
   if (!m.testing || m.tStart == null) return s
@@ -614,50 +630,47 @@ function meggerTick(s: ElecState): ElecState {
   return s
 }
 
-/** AC magnitude a non-contact detector sees at a point, volts to ground. */
-export function ticVolts(s: ElecState, p: Point): number {
-  const ph = acPhasor(s, p)
-  return Math.hypot(ph[0], ph[1])
-}
+// ---- TIC 300 PRO ----------------------------------------------------------------------------------------
 
 function ticCheck(s: ElecState, p: Point): ElecState {
   const t = s.tic
   if (!t.on) return log(s, 'warn', 'TIC 300 PRO is off.')
   if (POINT_SCENE[p] !== s.scene) return s
   const ac = ticVolts(s, p)
-  const threshold = t.range === 'LOW' ? 30 : 1500
-  const detected = ac >= threshold
+  const mv = MV_POINTS.includes(p)
+  // LOW range inside an MV compartment picks up whatever live bus is nearby; HIGH reads the conductor in front of the tip
+  const pickup = t.range === 'LOW' && mv && mvLiveNearby(s)
+  const detected = t.range === 'LOW' ? ac >= 30 || pickup : ac >= 1500
   let next: ElecState = { ...s, tic: { ...t, last: { point: p, detected, t: s.t } }, tests: s.tests + 1 }
-  const isDc = p === 'DC_P' || p === 'DC_N'
-  if (POINT_SCENE[p] === 'drive' && !verifiedDead(s)) next = requireSuit(next, 'ppe_test')
-  next = log(next, 'measure', `TIC 300 PRO ${t.range} at ${POINT_LABEL[p]}: ${detected ? '⚡ tip flashing, beeper sounding – AC voltage present' : 'no indication'}`)
-  if (isDc) {
-    next = { ...next, tic: { ...next.tic, busChecked: true } }
-    return log(next, 'info', `Bus is DC. A non-contact AC detector shows nothing whether the bus is dead or holding ${busVolts(s).toFixed(0)} V. Use the 789 on V DC.`)
-  }
-  if (!ticAllowed(s)) {
+  if (mv && !verifiedDead(s)) next = requireSuit(next, 'ppe_test')
+  next = log(next, 'measure', `TIC 300 PRO ${t.range} at ${POINT_LABEL[p]}: ${detected ? '⚡ tip flashing, beeper sounding – AC voltage present' : 'no indication'}${pickup && ac < 30 ? ' (proximity pickup from the live bus, not this conductor)' : ''}`)
+  if (!mv) {
     if (!next.log.some((l) => l.text.includes('over 1,000 V'))) {
-      next = log(next, 'info', `Site procedure: the TIC 300 PRO is the verification instrument on systems over 1,000 V. This equipment is ${s.scenario.label.voltage} V: verify absence of voltage with the Fluke 789, contact test, live-dead-live.`)
+      next = log(next, 'info', 'Site procedure: the TIC 300 PRO is the verification instrument on systems over 1,000 V. This point is low voltage: verify it with the Fluke 789 by contact.')
     }
     return next
   }
-  if (detected) {
-    if (p.startsWith('RECEPT')) next = { ...next, proofs: [...next.proofs, next.t] }
+  if (t.range === 'LOW') {
+    if (!next.violations.some((v) => v.id === 'tic_low_range_mv')) next = violate(next, 'tic_low_range_mv')
     return next
   }
-  if (t.range === 'HIGH') return violate(next, 'tic_high_range', ac >= 30 ? `${POINT_LABEL[p]} is live at ${ac.toFixed(0)} V.` : undefined)
-  if (p.startsWith('RECEPT')) return next
+  if (detected) {
+    next = { ...next, proofs: [...next.proofs, next.t] }
+    return log(next, 'info', 'Live 4160 V indication: that counts as proving the detector.')
+  }
   if (t.selfTestAt == null && !next.violations.some((v) => v.id === 'tic_no_selftest')) next = violate(next, 'tic_no_selftest')
   const d: DeadTest = { a: p, b: 'GND', mode: 'VAC', t: next.t, instrument: 'tic' }
   return { ...next, deadTests: [...next.deadTests, d] }
 }
 
-function requireHandsOn(s: ElecState, where: 'drive' | 'motor'): ElecState {
+// ---- hands-on gates ---------------------------------------------------------------------------------------
+
+function requireHandsOn(s: ElecState, where: 'compartment' | 'motor'): ElecState {
   let next = s
   if (!lockedOut(s)) next = violate(next, 'work_not_locked')
   else if (!verifiedDead(s)) next = violate(next, 'work_not_verified')
-  if (where === 'drive' && chargeLampOn(s)) next = violate(next, 'bus_charged', `Bus at ${busVolts(s).toFixed(0)} V`)
-  if (where === 'drive' && s.lp2Closed) next = violate(next, 'ctrl_live_touch')
+  if (where === 'compartment' && chargeLampOn(s)) next = violate(next, 'cells_charged', `Cells at ${linkVolts(s).toFixed(0)} V`)
+  if (where === 'compartment' && s.closed.ctrl) next = violate(next, 'ctrl_live_touch')
   return next
 }
 
@@ -680,8 +693,10 @@ export function reduceElec(s: ElecState, a: Action): ElecState {
   switch (a.type) {
     case 'tick':
       return meggerTick({ ...s, t: s.t + 1 })
-    case 'wait':
-      return log(meggerTick({ ...s, t: s.t + a.minutes * 60 }), 'info', `Waited ${a.minutes} minutes. DC bus now ${busVolts({ ...s, t: s.t + a.minutes * 60 }).toFixed(0)} V, CHARGE lamp ${chargeLampOn({ ...s, t: s.t + a.minutes * 60 }) ? 'lit' : 'off'}.`)
+    case 'wait': {
+      const moved = meggerTick({ ...s, t: s.t + a.minutes * 60 })
+      return log(moved, 'info', `Waited ${a.minutes} minutes. Drive cells now ${linkVolts(moved).toFixed(0)} V, CHARGE lamps ${chargeLampOn(moved) ? 'lit' : 'off'}.`)
+    }
     case 'checklist': {
       const next = { ...s, checklist: { ...s.checklist, [a.id]: !s.checklist[a.id] } }
       const item = CHECKLIST.find((c) => c.id === a.id)
@@ -689,9 +704,9 @@ export function reduceElec(s: ElecState, a: Action): ElecState {
     }
     case 'goto': {
       if (a.scene === s.scene) return s
-      const names: Record<Scene, string> = { mcc: 'the MCC room', drive: 'the open VFD-101 cabinet', motor: 'P-101 motor' }
+      const names: Record<Scene, string> = { room: 'the electrical room', compartment: 'the M12 motor connection compartment', motor: 'P-310 motor' }
       const stopped = s.megger.testing ? meggerStop(s) : s
-      const next = { ...stopped, scene: a.scene, meter: { ...stopped.meter, probeA: null, probeB: null }, megger: { ...stopped.megger, minus: null, plus: null, result: null, inhibit: null } }
+      const next = { ...stopped, scene: a.scene, meter: { ...stopped.meter, probeA: null, probeB: null, held: null }, megger: { ...stopped.megger, minus: null, plus: null, result: null, inhibit: null } }
       return log(next, 'info', `Walked to ${names[a.scene]}.`)
     }
     case 'readLabel': {
@@ -702,7 +717,6 @@ export function reduceElec(s: ElecState, a: Action): ElecState {
       const item = PPE_ITEMS.find((p) => p.id === a.id)!
       let ppe = s.ppe.filter((p) => p !== a.id)
       if (a.on) {
-        // one body garment and one glove type at a time
         if (item.slot === 'body' && item.id !== 'cotton') ppe = ppe.filter((p) => !['ar8', 'ar12', 'suit40'].includes(p))
         if (item.slot === 'hands') ppe = ppe.filter((p) => PPE_ITEMS.find((x) => x.id === p)?.slot !== 'hands')
         ppe = [...ppe, a.id]
@@ -717,75 +731,82 @@ export function reduceElec(s: ElecState, a: Action): ElecState {
       if (chk.adequate) {
         const glove = PPE_ITEMS.find((p) => p.slot === 'hands' && s.ppe.includes(p.id))
         const over = glove && glove.gloveClass !== l.gloveClass ? ` (label calls for class ${l.gloveClass}; class ${glove.gloveClass} is over-rated but acceptable)` : ''
-        return log(next, 'action', `Suited up against the label: ${chk.bodyRating} cal/cm² arc-rated clothing for ${l.incidentEnergy} cal/cm² at ${l.workingDistance} in, head and face protection, class ${glove?.gloveClass ?? l.gloveClass} gloves with leather protectors${over}, hearing, eyes, leather footwear.`)
+        return log(next, 'action', `Suited up against the label: ${chk.bodyRating} cal/cm² arc-rated suit and hood for ${l.incidentEnergy} cal/cm² at ${l.workingDistance} in, class ${glove?.gloveClass ?? l.gloveClass} gloves with leather protectors${over}, hearing, eyes, leather footwear.`)
       }
       return log(next, 'warn', `PPE confirmed but does not meet the label: ${chk.issues.join('; ')}.`)
     }
-    case 'breaker': {
-      if (a.closed === s.mccClosed) return s
-      if (s.locks.mcc) return log(s, 'warn', 'MCC-3 3B handle will not move: locked.')
+    case 'switch': {
+      const t = a.target
+      if (a.closed === s.closed[t]) return s
+      if (s.locks[t]) return log(s, 'warn', `${targetLabel(t)}: handle will not move, locked.`)
       let next = requireSuit(s, 'ppe_before_loto')
-      if (a.closed) {
-        next = { ...next, mccClosed: true }
-        return log(next, 'action', 'MCC-3 bucket 3B breaker closed. VFD-101 energized, DC bus charging.')
+      next = { ...next, closed: { ...next.closed, [t]: a.closed } }
+      if (!a.closed) next = { ...next, done: { ...next.done, [t]: { ...next.done[t], opened: true } } }
+      if (t === 'mv') {
+        if (a.closed) return log(next, 'action', 'Power isolation switch closed. VFD #2 incoming at 4160 V, cells charging.')
+        next = { ...next, tOff: s.t, linkAtOff: linkVolts(s), drive: { ...next.drive, running: false } }
+        return log(next, 'action', 'Power isolation switch opened. Blades visible open through the viewing window. Drive cell CHARGE lamps still lit.')
       }
-      next = { ...next, mccClosed: false, tOff: s.t, busAtOff: busVolts(s), drive: { ...next.drive, running: false }, done: { ...next.done, breakerOpened: true } }
-      return log(next, 'action', 'MCC-3 bucket 3B breaker opened. Handle in OFF, visible open confirmed through the window. CHARGE lamp still lit.')
-    }
-    case 'lp2': {
-      if (a.closed === s.lp2Closed) return s
-      if (s.locks.lp2) return log(s, 'warn', 'LP-2 ckt 7 will not move: locked.')
-      const next = { ...requireSuit(s, 'ppe_before_loto'), lp2Closed: a.closed, done: { ...s.done, lp2Opened: s.done.lp2Opened || !a.closed } }
-      return log(next, 'action', a.closed ? 'LP-2 ckt 7 closed. 120 V control circuit live, 1M contactor pulled in.' : 'LP-2 ckt 7 opened. 120 V control circuit dead, 1M contactor dropped out.')
+      if (t === 'bypass') return log(next, 'action', a.closed ? 'M12 bypass isolation switch closed: 4160 V on the bypass stabs.' : 'M12 bypass isolation switch opened. Blades visible open. Bypass stabs dead.')
+      if (t === 'aux') return log(next, 'action', a.closed ? 'CENTERLINE bucket 3B closed: drive cooling fans and CPT energized.' : 'CENTERLINE bucket 3B handle to OFF. Cooling fans spinning down, CPT dead.')
+      return log(next, 'action', a.closed ? 'LP-1 ckt 7 closed. 120 V control circuit live, M32 isolation contactor coil energized.' : 'LP-1 ckt 7 opened. 120 V control dead, M32 isolation contactor dropped out, Multilin dark.')
     }
     case 'lock': {
-      const closed = a.target === 'mcc' ? s.mccClosed : s.lp2Closed
-      if (a.on && closed) return log(s, 'warn', `Cannot lock ${a.target === 'mcc' ? 'MCC-3 3B' : 'LP-2 ckt 7'} in the OFF position while it is closed. Open it first.`)
-      if (a.on === s.locks[a.target]) return s
-      let next: ElecState = { ...(a.on ? requireSuit(s, 'ppe_before_loto') : s), locks: { ...s.locks, [a.target]: a.on } }
-      if (a.on) next = { ...next, done: { ...next.done, [a.target === 'mcc' ? 'mccLocked' : 'lp2Locked']: true } }
+      const t = a.target
+      if (a.on && s.closed[t]) return log(s, 'warn', `Cannot lock ${targetLabel(t)} in the OFF position while it is closed. Open it first.`)
+      if (a.on === s.locks[t]) return s
+      let next: ElecState = { ...(a.on ? requireSuit(s, 'ppe_before_loto') : s), locks: { ...s.locks, [t]: a.on } }
+      if (a.on) next = { ...next, done: { ...next.done, [t]: { ...next.done[t], locked: true } } }
       if (!a.on && !restored(s)) next = violate(next, 'locks_early')
-      return log(next, 'action', `${a.on ? 'Applied' : 'Removed'} personal lock on ${a.target === 'mcc' ? 'MCC-3 bucket 3B handle' : 'LP-2 ckt 7 breaker lockout'}.`)
+      return log(next, 'action', `${a.on ? 'Applied' : 'Removed'} personal lock on ${targetLabel(t)}.`)
     }
     case 'tag': {
-      if (a.on === s.tags[a.target]) return s
-      const next: ElecState = { ...(a.on ? requireSuit(s, 'ppe_before_loto') : s), tags: { ...s.tags, [a.target]: a.on }, done: a.on ? { ...s.done, [a.target === 'mcc' ? 'mccTagged' : 'lp2Tagged']: true } : s.done }
-      return log(next, 'action', `${a.on ? 'Hung' : 'Removed'} danger tag on ${a.target === 'mcc' ? 'MCC-3 3B' : 'LP-2 ckt 7'}: name, date, "Do not operate – VFD-101 ground fault".`)
+      const t = a.target
+      if (a.on === s.tags[t]) return s
+      let next: ElecState = { ...(a.on ? requireSuit(s, 'ppe_before_loto') : s), tags: { ...s.tags, [t]: a.on } }
+      if (a.on) next = { ...next, done: { ...next.done, [t]: { ...next.done[t], tagged: true } } }
+      return log(next, 'action', `${a.on ? 'Hung' : 'Removed'} danger tag on ${targetLabel(t)}: name, date, "Do not operate – VFD #2 ground fault".`)
     }
     case 'tryStart': {
-      if (s.locks.mcc && s.locks.lp2 && !s.mccClosed && !s.lp2Closed) {
-        return log({ ...requireSuit(s, 'ppe_before_loto'), tryStepDone: true }, 'action', 'Try-step: MCC-3 3B handle will not move with the lock on. LP-2 ckt 7 locked. RUN pressed on the keypad: no response. Equipment cannot be restarted.')
+      if (lockedOut(s)) {
+        return log({ ...requireSuit(s, 'ppe_before_loto'), tryStepDone: true }, 'action', 'Try-step: none of the four handles will move with the locks on. START pressed on the relay door: no response, Multilin dark. Equipment cannot be restarted.')
       }
-      if (!s.mccClosed && !s.locks.mcc) {
+      if (!s.closed.mv && !s.locks.mv) {
         let next = violate(s, 'reenergized')
-        next = { ...next, mccClosed: true }
-        return log(next, 'action', 'Try-step with no lock: the handle went back to ON. VFD-101 is energized again.')
+        next = { ...next, closed: { ...next.closed, mv: true } }
+        return log(next, 'action', 'Try-step with no lock: the power isolation switch went back to ON. VFD #2 is energized again.')
       }
-      return log(s, 'warn', 'Try-step before the lockout is complete proves nothing. Open and lock both sources first.')
+      return log(s, 'warn', 'Try-step before every source is open and locked proves nothing. Four sources: MV incoming, bypass, 480 V aux, 120 V control.')
     }
-    case 'keypad': {
-      if (!keypadLit(s)) return log(s, 'info', 'Keypad is dark.')
-      if (a.key === 'STOP') return log({ ...s, drive: { ...s.drive, running: false, display: s.drive.faulted ? s.scenario.drive.faultCode : '0.0' } }, 'action', 'Keypad STOP.')
+    case 'relay': {
+      if (!relayLit(s)) return log(s, 'info', 'Multilin is dark, no control power.')
+      if (a.key === 'STOP') return log({ ...s, drive: { ...s.drive, running: false, display: s.drive.faulted ? s.scenario.drive.faultCode : 'STOPPED' } }, 'action', 'STOP pressed.')
       if (a.key === 'RESET') {
         if (!s.drive.faulted) return s
-        return log({ ...s, drive: { ...s.drive, faulted: false, display: '0.0' } }, 'action', `Keypad RESET: ${s.scenario.drive.faultCode} cleared, display 0.0 Hz.`)
+        return log({ ...s, drive: { ...s.drive, faulted: false, display: 'READY' } }, 'action', 'Multilin RESET: 86 lockout cleared, drive READY.')
       }
-      // RUN
-      if (!s.mccClosed) return log(s, 'info', 'RUN pressed: no main power, drive will not start.')
-      if (s.drive.faulted) return log(s, 'info', `RUN pressed: ${s.scenario.drive.faultCode} standing, reset required.`)
+      if (!s.closed.mv) return log(s, 'info', 'START pressed: no 4160 V incoming, drive will not start.')
+      if (s.drive.faulted) return log(s, 'info', `START pressed: ${s.scenario.drive.faultCode} standing, reset required.`)
       if (!restored(s)) {
-        return violate(log({ ...s, drive: { ...s.drive, faulted: true, display: 'EPHO' } }, 'action', 'RUN pressed: output phase loss EPHO, drive tripped.'), 'run_not_restored')
+        return violate(log({ ...s, drive: { ...s.drive, faulted: true, display: 'OPEN CIRCUIT' } }, 'action', 'START pressed: drive tripped on output open circuit / phase loss.'), 'run_not_restored')
       }
-      if (s.drive.damaged) return log({ ...s, drive: { ...s.drive, faulted: true, display: 'OCA' } }, 'action', 'RUN pressed: OCA over-current at start, drive tripped. Output stage damaged.')
-      if (!s.faultCleared) return log({ ...s, drive: { ...s.drive, faulted: true, display: s.scenario.drive.faultCode } }, 'action', `RUN pressed: ${s.scenario.drive.faultCode} ground fault within 0.2 s. Fault still present.`)
-      return log({ ...s, drive: { ...s.drive, running: true, display: '60.0' } }, 'action', `RUN pressed: ramped to 60.0 Hz, ${(s.scenario.motor.fla * 0.82).toFixed(0)} A, no fault.`)
+      if (s.drive.damaged) return log({ ...s, drive: { ...s.drive, faulted: true, display: 'CELL FAULT' } }, 'action', 'START pressed: output cell fault, drive tripped. Output stage damaged.')
+      if (!s.faultCleared) return log({ ...s, drive: { ...s.drive, faulted: true, display: s.scenario.drive.faultCode } }, 'action', `START pressed: ${s.scenario.drive.faultCode} within 0.2 s. Fault still present.`)
+      return log({ ...s, drive: { ...s.drive, running: true, display: 'RUNNING' } }, 'action', `START pressed: ramped to 60.0 Hz, ${(s.scenario.motor.fla * 0.82).toFixed(0)} A, no fault.`)
     }
     case 'door': {
       if (a.open === s.doorOpen) return s
       let next = s
-      if (a.open && s.mccClosed) next = requireSuit(next, 'ppe_door')
+      if (a.open && (s.closed.mv || s.closed.bypass)) next = requireSuit(next, 'ppe_door')
       next = { ...next, doorOpen: a.open }
-      return log(next, 'action', a.open ? `Opened VFD-101 cabinet door. CHARGE lamp ${chargeLampOn(s) ? 'LIT' : 'off'}.` : 'Closed VFD-101 cabinet door.')
+      return log(next, 'action', a.open ? `Opened the M12 motor connection compartment. Cell CHARGE lamps ${chargeLampOn(s) ? 'LIT' : 'off'}.` : 'Closed the M12 motor connection compartment.')
+    }
+    case 'auxDoor': {
+      if (a.open === s.auxDoorOpen) return s
+      let next = s
+      if (a.open && s.closed.aux) next = requireSuit(next, 'ppe_door')
+      next = { ...next, auxDoorOpen: a.open }
+      return log(next, 'action', a.open ? 'Opened CENTERLINE bucket 3B.' : 'Closed CENTERLINE bucket 3B.')
     }
     case 'meterMode':
       return { ...s, meter: { ...s.meter, mode: a.mode, probeA: null, probeB: null, held: null, rel: null } }
@@ -827,17 +848,17 @@ export function reduceElec(s: ElecState, a: Action): ElecState {
       return ticCheck(s, a.point)
     case 'liftLeads': {
       if (a.lifted === s.leadsLifted) return s
-      if (!s.doorOpen) return log(s, 'warn', 'Open the cabinet door first.')
-      let next = a.lifted ? requireHandsOn(s, 'drive') : s
+      if (!s.doorOpen) return log(s, 'warn', 'Open the motor connection compartment first.')
+      let next = a.lifted ? requireHandsOn(s, 'compartment') : s
       next = { ...next, leadsLifted: a.lifted, meter: { ...next.meter, probeA: null, probeB: null }, megger: { ...next.megger, minus: null, plus: null, result: null } }
-      return log(next, 'action', a.lifted ? 'Lifted motor leads T1, T2, T3 from the 1M contactor load side, taped and tagged. Motor circuit isolated from the drive.' : 'Re-landed motor leads T1, T2, T3 on 1M, torqued.')
+      return log(next, 'action', a.lifted ? 'Unbolted motor cable terminations U, V, W from the connection bus, supported on insulated stands and wrapped. Motor circuit isolated from the controller.' : 'Re-landed U, V, W on the connection bus, torqued, shrink boots back on.')
     }
     case 'cover': {
       if (a.off === s.jbox.coverOff) return s
       if (s.scene !== 'motor') return s
       let next = a.off ? requireHandsOn(s, 'motor') : s
       next = { ...next, jbox: { ...next.jbox, coverOff: a.off } }
-      return log(next, 'action', a.off ? 'Removed P-101M terminal box cover (8 bolts).' : 'Terminal box cover reinstalled, gasket seated, bolts torqued.')
+      return log(next, 'action', a.off ? 'Removed P-310M terminal box cover (12 bolts).' : 'Terminal box cover reinstalled, gasket seated, bolts torqued.')
     }
     case 'inspectBox': {
       if (!s.jbox.coverOff) return log(s, 'warn', 'Cover is on.')
@@ -849,12 +870,12 @@ export function reduceElec(s: ElecState, a: Action): ElecState {
       if (!s.jbox.coverOff) return log(s, 'warn', 'Cover is on.')
       let next = a.unbolted ? requireHandsOn(s, 'motor') : s
       next = { ...next, jbox: { ...next.jbox, feedersUnbolted: a.unbolted, lugsCleared: a.unbolted ? next.jbox.lugsCleared : false }, meter: { ...next.meter, probeA: null, probeB: null }, megger: { ...next.megger, minus: null, plus: null, result: null } }
-      return log(next, 'action', a.unbolted ? 'Unbolted feeder lugs L1, L2, L3 from bushings T1, T2, T3. Motor and cable separated.' : 'Feeder lugs bolted back on T1, T2, T3 and torqued.')
+      return log(next, 'action', a.unbolted ? 'Unbolted feeder terminations L1, L2, L3 from bushings T1, T2, T3. Motor and cable separated.' : 'Feeder terminations bolted back on T1, T2, T3 and torqued.')
     }
     case 'clearLugs': {
-      if (!s.jbox.feedersUnbolted) return log(s, 'warn', 'Feeder lugs are still bolted to the bushings.')
+      if (!s.jbox.feedersUnbolted) return log(s, 'warn', 'Feeder terminations are still bolted to the bushings.')
       if (s.jbox.lugsCleared) return s
-      return log({ ...s, jbox: { ...s.jbox, lugsCleared: true } }, 'action', 'Lifted feeder lugs supported clear of the enclosure and wrapped.')
+      return log({ ...s, jbox: { ...s.jbox, lugsCleared: true } }, 'action', 'Lifted feeder terminations supported clear of the enclosure on insulated stands.')
     }
     case 'wye': {
       if (a.open === s.jbox.wyeOpen) return s

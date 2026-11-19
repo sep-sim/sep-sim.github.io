@@ -34,7 +34,7 @@ function Exterior({ state, dispatch }: Props) {
       <rect x="300" y="300" width="120" height="40" fill="#e8e6dc" stroke="#555" />
       <text x="360" y="316" textAnchor="middle" className="tiny-dark" style={{ fontWeight: 700 }}>{s.scenario.motor.tag} · {s.scenario.motor.hp} HP</text>
       <text x="360" y="328" textAnchor="middle" className="tiny-dark">{s.scenario.motor.volts} V · {s.scenario.motor.fla} A · {s.scenario.motor.rpm} RPM · {s.scenario.motor.frame}</text>
-      <text x="360" y="337" textAnchor="middle" className="tiny-dark" style={{ fontSize: 6 }}>6 LEADS · WYE · IP55 TEFC</text>
+      <text x="360" y="337" textAnchor="middle" className="tiny-dark" style={{ fontSize: 6 }}>6 LEADS · WYE · WPII · FORM-WOUND</text>
 
       {/* terminal box */}
       <g className="hotspot-g" onClick={() => dispatch({ type: 'cover', off: true })}>
@@ -50,10 +50,10 @@ function Exterior({ state, dispatch }: Props) {
       {/* conduit */}
       <rect x="505" y="150" width="22" height="250" fill="#8a8f96" stroke="#444" />
       <rect x="500" y="150" width="32" height="22" fill="#5c6670" stroke="#333" />
-      <text x="545" y="300" className="hint">2" RGS · 3 × 2/0 + G</text>
+      <text x="545" y="300" className="hint">4" RGS · 3 × 500 kcmil 5 kV shielded + G</text>
 
-      <Hotspot x={30} y={520} w={220} h={36} label="← Back to the MCC room" onClick={() => dispatch({ type: 'goto', scene: 'mcc' })} />
-      <Hotspot x={270} y={520} w={220} h={36} label="← VFD-101 cabinet" onClick={() => dispatch({ type: 'goto', scene: 'drive' })} />
+      <Hotspot x={30} y={520} w={220} h={36} label="← Back to the electrical room" onClick={() => dispatch({ type: 'goto', scene: 'room' })} />
+      <Hotspot x={270} y={520} w={220} h={36} label="← M12 compartment" onClick={() => dispatch({ type: 'goto', scene: 'compartment' })} />
     </svg>
   )
 }
@@ -101,7 +101,7 @@ function Interior({ state, onProbe, dispatch }: Props) {
             <rect x={x - 40} y="128" width="80" height="88" rx="4" fill="url(#lug)" stroke="#5a5d61" strokeWidth="2" />
             {[0, 1, 2, 3].map((b) => <circle key={b} cx={x - 20 + (b % 2) * 40} cy={148 + Math.floor(b / 2) * 42} r="9" fill="#d5d8db" stroke="#55585c" strokeWidth="2" />)}
             {[0, 1, 2, 3].map((b) => <polygon key={b} points={`${x - 20 + (b % 2) * 40 - 6},${148 + Math.floor(b / 2) * 42 - 3} ${x - 20 + (b % 2) * 40 + 6},${148 + Math.floor(b / 2) * 42 - 3} ${x - 20 + (b % 2) * 40},${148 + Math.floor(b / 2) * 42 + 7}`} fill="#9a9da1" />)}
-            <text x={x} y="226" textAnchor="middle" className="tiny-dark" style={{ fontSize: 7 }}>2/0 AWG · 1 AL9CU</text>
+            <text x={x} y="226" textAnchor="middle" className="tiny-dark" style={{ fontSize: 7 }}>500 kcmil · 5 kV</text>
             {/* motor lead from the lug block: red with grey shrink, into the motor side */}
             <rect x={x + 10} y="216" width="16" height="40" fill="url(#shrink)" />
             <path d={`M${x + 18} 256 C ${x + 18} 330, ${x + 70} 360, ${x + 90} 560`} fill="none" stroke="url(#red)" strokeWidth="16" strokeLinecap="round" />
@@ -164,7 +164,7 @@ function Interior({ state, onProbe, dispatch }: Props) {
 
       {/* conduit hub */}
       <ellipse cx="500" cy="548" rx="70" ry="18" fill="#1c1e21" stroke="#000" strokeWidth="3" />
-      <text x="500" y="576" textAnchor="middle" className="hint">2" hub · feeder + ground + RTD</text>
+      <text x="500" y="576" textAnchor="middle" className="hint">4" hub · 5 kV feeders + ground + RTD</text>
 
       {/* actions */}
       <Hotspot x={70} y={520} w={110} h={30} label="Inspect box" onClick={() => dispatch({ type: 'inspectBox' })} />

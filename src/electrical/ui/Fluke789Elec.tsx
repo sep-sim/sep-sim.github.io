@@ -72,8 +72,8 @@ export function Fluke789Elec({ state, dispatch }: Props) {
       hint={
         <>
           {off && 'Turn the knob. With this tab open, tapping two points in the scene places red then black.'}
-          {(m.mode === 'VAC' || m.mode === 'VDC') && 'Prove the meter on the 120 V receptacle before and after testing for absence of voltage. The DC bus must be checked on V DC: on V AC it reads near zero even at 650 V. The 789 is CAT III 1000 V.'}
-          {m.mode === 'mVDC' && 'Millivolt range. Anything over 300 mV reads OL here; use V DC for the bus.'}
+          {(m.mode === 'VAC' || m.mode === 'VDC') && 'Prove the meter on the 120 V receptacle before and after testing. It is for the 480 V aux bucket and the 120 V control strip only: CAT III 1000 V has no business on the 4160 V side, that is the TIC 300 PRO.'}
+          {m.mode === 'mVDC' && 'Millivolt range. Anything over 300 mV reads OL here.'}
           {m.mode === 'OHM' && 'Continuity and resistance. Not an insulation test; use the Megger.'}
           {(m.mode === 'mA' || out || m.mode === 'LOOP') && 'No 4-20 mA loop on this job. The current positions have nothing to read.'}
         </>

@@ -3,19 +3,19 @@ import type { ElecScenario, Point, Scene } from '../types'
 import { createElecSession, ppeCheck, reduceElec } from '../engine'
 import { scoreElec, elecAnswer, diagnosisLabel } from '../score'
 import { REPAIRS } from '../types'
-import { MccScene } from './MccScene'
-import { DriveScene } from './DriveScene'
+import { RoomScene } from './RoomScene'
+import { CompartmentScene } from './CompartmentScene'
 import { MotorScene } from './MotorScene'
 import { Fluke789Elec } from './Fluke789Elec'
 import { MeggerS1 } from './MeggerS1'
 import { TicTracer } from './TicTracer'
 import { ArcLabelModal } from './ArcLabel'
-import { Closeout, Keypad, Loto, PpeLocker, Prework } from './Panels'
+import { Closeout, Loto, PpeLocker, Prework, Relay } from './Panels'
 import { WorkLog } from '../../components/WorkLog'
 import { LogDock } from '../../components/LogDock'
 import { useLogDock } from '../../components/useLogDock'
 
-type Tab = 'prework' | 'ppe' | 'loto' | 'tic' | 'dmm' | 'megger' | 'keypad' | 'closeout'
+type Tab = 'prework' | 'ppe' | 'loto' | 'tic' | 'dmm' | 'megger' | 'relay' | 'closeout'
 
 export function ElecSim({ scenario, onExit }: { scenario: ElecScenario; onExit: () => void }) {
   const [state, dispatch] = useReducer(reduceElec, scenario, createElecSession)
@@ -51,7 +51,7 @@ export function ElecSim({ scenario, onExit }: { scenario: ElecScenario; onExit: 
           <p><b>Actual fault:</b> {diagnosisLabel(ans.diagnosis)}</p>
           <p><b>Your diagnosis:</b> {diagnosisLabel(state.diagnosis)}</p>
           <p><b>Required repair:</b> {ans.repairs.map((r) => REPAIRS.find((x) => x.id === r)?.label).join('; ')}</p>
-          {state.drive.damaged && <p><b>Collateral:</b> VFD-101 output stage destroyed by the insulation tester.</p>}
+          {state.drive.damaged && <p><b>Collateral:</b> VFD #2 output cells destroyed by the insulation tester.</p>}
         </div>
         <h4>Work log</h4>
         <WorkLog log={state.log} />
@@ -60,13 +60,13 @@ export function ElecSim({ scenario, onExit }: { scenario: ElecScenario; onExit: 
   }
 
   const ppe = ppeCheck(state)
-  const scenes: { id: Scene; label: string }[] = [{ id: 'mcc', label: 'MCC room' }, { id: 'drive', label: 'VFD-101 cabinet' }, { id: 'motor', label: 'P-101 motor' }]
+  const scenes: { id: Scene; label: string }[] = [{ id: 'room', label: 'Electrical room' }, { id: 'compartment', label: 'M12 compartment' }, { id: 'motor', label: 'P-310 motor' }]
   const tabs: { id: Tab; label: string }[] = [
     { id: 'prework', label: 'Pre-work' }, { id: 'ppe', label: 'PPE' }, { id: 'loto', label: 'LOTO' },
-    { id: 'tic', label: 'TIC 300' }, { id: 'dmm', label: 'Fluke 789' }, { id: 'megger', label: 'Megger' }, { id: 'keypad', label: 'Keypad' }, { id: 'closeout', label: 'Close-out' },
+    { id: 'tic', label: 'TIC 300' }, { id: 'dmm', label: 'Fluke 789' }, { id: 'megger', label: 'Megger' }, { id: 'relay', label: 'Relay' }, { id: 'closeout', label: 'Close-out' },
   ]
 
-  /** Scene taps go to whichever instrument is in hand: TIC tip, DMM leads (red then black), or Megger (− then +). */
+  /** Scene taps go to whichever instrument is in hand: TIC tip, 789 leads (red then black), or Megger (− then +). */
   const onProbe = (p: Point) => {
     if (tab === 'tic') {
       dispatch({ type: 'ticCheck', point: p })
@@ -93,7 +93,7 @@ export function ElecSim({ scenario, onExit }: { scenario: ElecScenario; onExit: 
         <div className="scene-nav">
           {scenes.map((sc) => (
             <button key={sc.id} className={state.scene === sc.id ? 'active' : ''} onClick={() => {
-              if (sc.id === 'drive' && !state.doorOpen) dispatch({ type: 'door', open: true })
+              if (sc.id === 'compartment' && !state.doorOpen) dispatch({ type: 'door', open: true })
               dispatch({ type: 'goto', scene: sc.id })
             }}>{sc.label}</button>
           ))}
@@ -106,8 +106,8 @@ export function ElecSim({ scenario, onExit }: { scenario: ElecScenario; onExit: 
       </header>
       <main>
         <section className="diagram">
-          {state.scene === 'mcc' && <MccScene state={state} onProbe={onProbe} dispatch={dispatch} onLabel={() => { dispatch({ type: 'readLabel' }); setLabel(true) }} />}
-          {state.scene === 'drive' && <DriveScene state={state} onProbe={onProbe} dispatch={dispatch} />}
+          {state.scene === 'room' && <RoomScene state={state} onProbe={onProbe} dispatch={dispatch} onLabel={() => { dispatch({ type: 'readLabel' }); setLabel(true) }} />}
+          {state.scene === 'compartment' && <CompartmentScene state={state} onProbe={onProbe} dispatch={dispatch} />}
           {state.scene === 'motor' && <MotorScene state={state} onProbe={onProbe} dispatch={dispatch} />}
         </section>
         <aside>
@@ -122,7 +122,7 @@ export function ElecSim({ scenario, onExit }: { scenario: ElecScenario; onExit: 
               {tab === 'tic' && <TicTracer state={state} dispatch={dispatch} />}
               {tab === 'dmm' && <Fluke789Elec state={state} dispatch={dispatch} />}
               {tab === 'megger' && <MeggerS1 state={state} dispatch={dispatch} />}
-              {tab === 'keypad' && <Keypad state={state} dispatch={dispatch} />}
+              {tab === 'relay' && <Relay state={state} dispatch={dispatch} />}
               {tab === 'closeout' && <Closeout state={state} dispatch={dispatch} />}
             </div>
           </div>

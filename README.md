@@ -28,15 +28,17 @@ Open http://localhost:5173.
 
 ## Modules
 
-### Electrical: VFD-101 ground fault
+### Electrical: 4160 V VFD #2 ground fault on P-310
 
-Toshiba VF-AS3 on a 100 HP pump trips EF2. Scenes are drawn as places: the MCC room, the open drive cabinet, the motor
-on its pad and the inside of its six-lead terminal box.
+A Toshiba JK-series medium voltage controller (power isolation switch, VFD, bypass, output isolation contactor) on a
+4000 HP, 4160 V pump motor, with an Allen-Bradley CENTERLINE 2100 480 V MCC feeding the drive auxiliaries and 120 V
+control from a panelboard. The Multilin trips on 50G ground fault. Scenes are drawn as places: the electrical room, the
+M12 motor connection compartment, the motor on its pad and the inside of its six-lead terminal box.
 
-- Arc flash label on the cabinet; PPE locker graded against its incident energy
-- Two energy sources (480 V bucket, 120 V control circuit), lockout, tagout, try-step, DC bus discharge
-- Fluke 789 for absence-of-voltage verification by contact, live-dead-live; Amprobe TIC 300 PRO reserved for systems over 1,000 V
-- Lift the motor leads at the isolation contactor, then Megger S1-568: IR, IR(t), DAR, PI at 500 V
+- Arc flash label on the controller; the technician dresses a worker figure and confirms the kit against it before any lockout step
+- Four energy sources (4160 V incoming, 4160 V bypass, 480 V aux bucket, 120 V control), lockout, tagout, try-step, cell discharge
+- Amprobe TIC 300 PRO on HIGH range for the 4160 V conductors, proved on a live feeder window; Fluke 789 by contact for 480 V and 120 V
+- Lift the motor leads in the connection compartment, then Megger S1-568: IR, IR(t), DAR, PI at 2.5 kV
 - Unbolt the feeder lugs and the T4-T5-T6 wye bar to localize a termination, cable or winding fault
 - Three work orders, 100 points on the textbook path, penalties for the real mistakes
 

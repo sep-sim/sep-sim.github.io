@@ -1,7 +1,7 @@
 import type { Action } from '../engine'
-import { busVolts, chargeLampOn, keypadLit, ppeCheck, suitedUp, ticAllowed, REQUIRED_DEAD, deadTestDone, provedBefore, provedAfter, lockedOut } from '../engine'
+import { chargeLampOn, linkVolts, lockedOut, ppeCheck, relayLit, suitedUp, REQUIRED_DEAD, deadTestDone, provedBefore, provedAfter } from '../engine'
 import type { ElecState } from '../types'
-import { CHECKLIST, DIAGNOSES, POINT_LABEL, PPE_ITEMS, REPAIRS } from '../types'
+import { CHECKLIST, DIAGNOSES, LOCK_TARGETS, POINT_LABEL, PPE_ITEMS, REPAIRS } from '../types'
 import { Worker } from './Worker'
 import { GearIcon } from './Gear'
 import { PPE_CATEGORIES } from './ppeCategories'
@@ -21,13 +21,15 @@ export function Prework({ state, dispatch }: P) {
       ))}
       <h4>Work order</h4>
       <p>{state.scenario.workOrder}</p>
-      <h4>One-line E-401 (excerpt)</h4>
+      <h4>One-line E-310 (excerpt)</h4>
       <table className="kv">
         <tbody>
-          <tr><td>Power</td><td>MCC-3 bucket 3B, 480 V 3Ø, 200 A breaker → VFD-101 → 1M isolation contactor → P-101M</td></tr>
-          <tr><td>Control</td><td>LP-2 ckt 7, 120 V → VFD-101 X1 → 1M coil, drive enable</td></tr>
-          <tr><td>Stored energy</td><td>VFD DC bus capacitors, up to 800 V DC. CHARGE lamp on the drive. Wait ≥ 15 min after power off (Toshiba).</td></tr>
-          <tr><td>Motor</td><td>{state.scenario.motor.tag}: {state.scenario.motor.hp} HP, {state.scenario.motor.volts} V, {state.scenario.motor.fla} A, 6-lead wye</td></tr>
+          <tr><td>4160 V to VFD</td><td>SWG-1 52-7 → M22 power isolation switch → VFD #2 → M32 isolation contactor → connection bus → P-310M</td></tr>
+          <tr><td>4160 V bypass</td><td>SWG-1 52-7 → M12 bypass isolation switch → bypass contactor 42B → connection bus</td></tr>
+          <tr><td>480 V aux</td><td>CENTERLINE 2100 bucket 3B → drive cooling fans, control power transformer</td></tr>
+          <tr><td>120 V control</td><td>LP-1 ckt 7 → Multilin 469, M32 coil, drive enable</td></tr>
+          <tr><td>Stored energy</td><td>Drive cell capacitors. CHARGE lamps on the cell cabinet. Toshiba: wait 15 min after the isolation switch opens.</td></tr>
+          <tr><td>Motor</td><td>{state.scenario.motor.tag}: {state.scenario.motor.hp} HP, {state.scenario.motor.volts} V, {state.scenario.motor.fla} A, 6-lead wye, form-wound</td></tr>
           <tr><td>Label</td><td>{state.labelRead ? `${l.incidentEnergy} cal/cm², AFB ${l.arcFlashBoundary} in, glove class ${l.gloveClass}` : 'not read yet'}</td></tr>
         </tbody>
       </table>
@@ -52,17 +54,16 @@ export function PpeLocker({ state, dispatch }: P) {
           <div className={`suit-state ${suited ? 'ok' : ''}`}>{suited ? 'Suited up' : confirmed ? 'Kit changed since confirming' : 'Not suited up'}</div>
         </div>
         <div className="suitup-label">
-          <b>Label on VFD-101</b>
+          <b>Label on M12 / M22</b>
           {state.labelRead ? (
             <ul>
               <li><b>{l.incidentEnergy} cal/cm²</b> at {l.workingDistance} in</li>
-              <li>Arc rating ≥ <b>{l.minArcRating} cal/cm²</b></li>
-              <li>AR hood, or shield + balaclava</li>
+              <li>Arc rating ≥ <b>{l.minArcRating} cal/cm²</b>, arc flash hood</li>
               <li>Class <b>{l.gloveClass}</b> gloves + leather protectors</li>
               <li>Hard hat, glasses, hearing, leather boots</li>
-              <li>AFB {l.arcFlashBoundary} in</li>
+              <li>AFB {l.arcFlashBoundary} in · limited {l.limitedApproach} in · restricted {l.restrictedApproach} in</li>
             </ul>
-          ) : <div className="small muted">Read the label on the cabinet door first.</div>}
+          ) : <div className="small muted">Read the label on the M12 door first.</div>}
           <div className={`ppe-status ${chk.adequate ? 'ok' : 'bad'}`}>
             <b>{chk.adequate ? 'Kit meets the label' : 'Kit short of the label'}</b>
             {chk.issues.map((i) => <div key={i} className="small">• {i}</div>)}
@@ -70,7 +71,7 @@ export function PpeLocker({ state, dispatch }: P) {
           <button className="primary" onClick={() => dispatch({ type: 'ppeConfirm' })} disabled={suited}>{suited ? 'Suited up ✓' : 'Suit up for this task'}</button>
         </div>
       </div>
-      <p className="muted small">Dress him before touching a breaker, lock or tag. Tap gear on the rack to put it on or take it off.</p>
+      <p className="muted small">Dress him before touching a switch, lock or tag. Tap gear on the rack to put it on or take it off.</p>
       {slots.map((sl) => (
         <div key={sl.slot} className="rack-row">
           <span className="rack-slot">{sl.label}</span>
@@ -99,7 +100,7 @@ export function PpeLocker({ state, dispatch }: P) {
           </tbody>
         </table>
         <p className="muted small">
-          The label on VFD-101 was written by the incident energy method, so the rule is arc rating ≥ {l.incidentEnergy} cal/cm², not the category table.
+          The label on this controller was written by the incident energy method, so the rule is arc rating ≥ {l.incidentEnergy} cal/cm², not the category table.
           The table applies when a label states a PPE category instead of a cal/cm² figure. Never mix the two on one piece of equipment.
         </p>
       </details>
@@ -109,66 +110,63 @@ export function PpeLocker({ state, dispatch }: P) {
 
 export function Loto({ state, dispatch }: P) {
   const s = state
-  const bus = busVolts(s)
   return (
     <div>
-      <h4>Sources</h4>
-      <table className="kv">
+      <h4>Four sources</h4>
+      <table className="kv loto">
         <tbody>
-          <tr><td>MCC-3 3B</td><td>
-            <span className={`pill ${s.mccClosed ? 'bad' : 'ok'}`}>{s.mccClosed ? 'CLOSED' : 'OPEN'}</span>{' '}
-            <button onClick={() => dispatch({ type: 'breaker', closed: !s.mccClosed })}>{s.mccClosed ? 'Open' : 'Close'}</button>{' '}
-            <button onClick={() => dispatch({ type: 'lock', target: 'mcc', on: !s.locks.mcc })}>{s.locks.mcc ? 'Unlock' : 'Lock'}</button>{' '}
-            <button onClick={() => dispatch({ type: 'tag', target: 'mcc', on: !s.tags.mcc })}>{s.tags.mcc ? 'Remove tag' : 'Tag'}</button>
-          </td></tr>
-          <tr><td>LP-2 ckt 7</td><td>
-            <span className={`pill ${s.lp2Closed ? 'bad' : 'ok'}`}>{s.lp2Closed ? 'CLOSED' : 'OPEN'}</span>{' '}
-            <button onClick={() => dispatch({ type: 'lp2', closed: !s.lp2Closed })}>{s.lp2Closed ? 'Open' : 'Close'}</button>{' '}
-            <button onClick={() => dispatch({ type: 'lock', target: 'lp2', on: !s.locks.lp2 })}>{s.locks.lp2 ? 'Unlock' : 'Lock'}</button>{' '}
-            <button onClick={() => dispatch({ type: 'tag', target: 'lp2', on: !s.tags.lp2 })}>{s.tags.lp2 ? 'Remove tag' : 'Tag'}</button>
-          </td></tr>
-          <tr><td>DC bus</td><td>CHARGE lamp {chargeLampOn(s) ? <span className="pill bad">LIT</span> : <span className="pill ok">OFF</span>} · <button onClick={() => dispatch({ type: 'wait', minutes: 5 })}>Wait 5 min</button></td></tr>
+          {LOCK_TARGETS.map((t) => (
+            <tr key={t.id}>
+              <td>{t.volts}<br /><span className="muted small">{t.label}</span></td>
+              <td>
+                <span className={`pill ${s.closed[t.id] ? 'bad' : 'ok'}`}>{s.closed[t.id] ? 'CLOSED' : 'OPEN'}</span>{' '}
+                <button onClick={() => dispatch({ type: 'switch', target: t.id, closed: !s.closed[t.id] })}>{s.closed[t.id] ? 'Open' : 'Close'}</button>{' '}
+                <button onClick={() => dispatch({ type: 'lock', target: t.id, on: !s.locks[t.id] })}>{s.locks[t.id] ? 'Unlock' : 'Lock'}</button>{' '}
+                <button onClick={() => dispatch({ type: 'tag', target: t.id, on: !s.tags[t.id] })}>{s.tags[t.id] ? 'Remove tag' : 'Tag'}</button>
+              </td>
+            </tr>
+          ))}
+          <tr><td>Drive cells</td><td>CHARGE lamps {chargeLampOn(s) ? <span className="pill bad">LIT</span> : <span className="pill ok">OFF</span>} · {linkVolts(s) > 50 ? 'wait' : 'discharged'} · <button onClick={() => dispatch({ type: 'wait', minutes: 5 })}>Wait 5 min</button></td></tr>
         </tbody>
       </table>
-      <p className="muted small">The lamp tells you the bus is above about 50 V. Only a V DC measurement at PA/+ to PC/− proves it is safe.{bus > 50 && !s.mccClosed ? '' : ''}</p>
+      <p className="muted small">Toshiba calls for 15 minutes after the power isolation switch opens before any compartment is entered. The lamps confirm it; there is no hand-meter check of the cells.</p>
       <h4>Try-step</h4>
-      <button onClick={() => dispatch({ type: 'tryStart' })} disabled={!lockedOut(s)}>Attempt restart with locks on</button>
+      <button onClick={() => dispatch({ type: 'tryStart' })} disabled={!lockedOut(s)}>Attempt restart with all four locks on</button>
       {s.tryStepDone && <span className="pill ok" style={{ marginLeft: 8 }}>DONE</span>}
       <h4>Absence of voltage</h4>
-      <div className="small">Proved on the live receptacle before: {provedBefore(s) ? '✓' : '—'} · re-proved after: {provedAfter(s) ? '✓' : '—'} · TIC self-test: {s.tic.selfTestAt != null ? '✓' : '—'}</div>
+      <div className="small">Proved before: {provedBefore(s) ? '✓' : '—'} · re-proved after: {provedAfter(s) ? '✓' : '—'} · TIC self-test: {s.tic.selfTestAt != null ? '✓' : '—'}</div>
       <table className="kv">
         <tbody>
           {REQUIRED_DEAD.map((r) => (
-            <tr key={`${r.a}${r.b}`}><td>{r.label}</td><td>{r.mode === 'VDC' ? '789 V DC' : r.tic && ticAllowed(s) ? 'TIC 300 or 789' : '789 V AC'} {deadTestDone(s, r) ? '✓' : '—'}</td></tr>
+            <tr key={`${r.a}${r.b}`}><td>{r.label}</td><td>{r.instrument === 'tic' ? 'TIC 300 HIGH' : '789 V AC'} {deadTestDone(s, r) ? '✓' : '—'}</td></tr>
           ))}
         </tbody>
       </table>
-      <p className="muted small">{ticAllowed(s) ? 'The TIC 300 PRO proves the AC conductors above 1,000 V. It cannot see the DC bus; that one takes the 789 on V DC.' : `This is ${s.scenario.label.voltage} V equipment: verify with the Fluke 789 by contact, live-dead-live. The TIC 300 PRO is for systems over 1,000 V.`}</p>
+      <p className="muted small">4160 V conductors: TIC 300 PRO on HIGH range, proved on the live M42 window before and after. 480 V and 120 V: Fluke 789 by contact, proved on the receptacle. The 789 never goes near the 4160 V bus.</p>
     </div>
   )
 }
 
-export function Keypad({ state, dispatch }: P) {
-  const lit = keypadLit(state)
+export function Relay({ state, dispatch }: P) {
+  const lit = relayLit(state)
   return (
-    <div className="tkp">
-      <div className="tkp-head">TOSHIBA · VF-AS3</div>
+    <div className="tkp relay">
+      <div className="tkp-head">GE MULTILIN 469 · MOTOR PROTECTION · M22 DOOR</div>
       <div className={`tkp-lcd ${lit ? '' : 'off'}`}>
         <div className="tkp-big">{lit ? state.drive.display : ''}</div>
-        <div className="tkp-sub">{lit ? (state.drive.faulted ? `${state.scenario.drive.faultCode} ${state.scenario.drive.faultText}` : state.drive.running ? 'RUN · Hz' : 'READY · Hz') : ''}</div>
+        <div className="tkp-sub">{lit ? (state.drive.faulted ? state.scenario.drive.faultText : state.drive.running ? `P-310 RUNNING · ${(state.scenario.motor.fla * 0.82).toFixed(0)} A · 60.0 Hz` : 'READY · 0 A') : ''}</div>
       </div>
       <div className="tkp-leds">
-        <span className={state.drive.running && lit ? 'on' : ''}>RUN</span>
-        <span className={state.drive.faulted && lit ? 'trip' : ''}>TRIP</span>
-        <span className={chargeLampOn(state) ? 'trip' : ''}>CHARGE</span>
+        <span className={state.drive.running && lit ? 'on' : ''}>RUNNING</span>
+        <span className={state.drive.faulted && lit ? 'trip' : ''}>TRIP · 86</span>
+        <span className={chargeLampOn(state) ? 'trip' : ''}>CELL CHARGE</span>
       </div>
       <div className="tkp-keys">
-        <button onClick={() => dispatch({ type: 'keypad', key: 'STOP' })} className="stop" title="STOP; press when tripped to RESET">STOP<br /><small>RESET</small></button>
-        <button onClick={() => dispatch({ type: 'keypad', key: 'RESET' })}>RESET</button>
-        <button onClick={() => dispatch({ type: 'keypad', key: 'RUN' })} className="run">RUN</button>
-        <button disabled>MODE</button><button disabled>▲</button><button disabled>▼</button>
+        <button onClick={() => dispatch({ type: 'relay', key: 'STOP' })} className="stop">STOP</button>
+        <button onClick={() => dispatch({ type: 'relay', key: 'RESET' })}>RESET</button>
+        <button onClick={() => dispatch({ type: 'relay', key: 'START' })} className="run">START</button>
       </div>
-      <p className="muted small">The keypad is lit while the bus is charged. A dark keypad is not proof of anything.</p>
+      <p className="muted small">The relay and pushbuttons live on 120 V control. Dark means no control power, not a dead drive: the cells and the 4160 V bus are separate questions.</p>
     </div>
   )
 }
@@ -192,11 +190,11 @@ export function Closeout({ state, dispatch }: P) {
       <h4>Insulation test record</h4>
       <table className="kv">
         <tbody>
-          {state.insTests.map((t, i) => <tr key={i}><td>{POINT_LABEL[t.a]} → {POINT_LABEL[t.b]} @ {t.volts} V</td><td>{t.reading}</td></tr>)}
+          {state.insTests.map((t, i) => <tr key={i}><td>{POINT_LABEL[t.a]} → {POINT_LABEL[t.b]} @ {t.volts >= 1000 ? `${t.volts / 1000} kV` : `${t.volts} V`}</td><td>{t.reading}{t.pi != null ? ` · PI ${t.pi.toFixed(2)}` : ''}{t.dar != null ? ` · DAR ${t.dar.toFixed(2)}` : ''}</td></tr>)}
           {state.insTests.length === 0 && <tr><td colSpan={2} className="muted">none yet</td></tr>}
         </tbody>
       </table>
-      <p className="muted small">Restore in order: wye bar, feeder lugs, cover, leads on 1M, door, then remove your own locks, close LP-2 then 3B, reset and run.</p>
+      <p className="muted small">Restore in order: wye bar, feeder terminations, box cover, U-V-W on the bus, compartment door, aux bucket, then remove your own locks, close control, aux, bypass, MV incoming, reset the 86 and start.</p>
       <button className="primary" disabled={state.diagnosis == null} onClick={() => dispatch({ type: 'finish' })}>Close work order</button>
     </div>
   )
