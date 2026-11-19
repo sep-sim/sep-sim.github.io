@@ -34,16 +34,35 @@ export function Prework({ state, dispatch }: P) {
 
 export function PpeLocker({ state, dispatch }: P) {
   const chk = ppeCheck(state)
+  const l = state.scenario.label
   const slots: { slot: string; label: string }[] = [
     { slot: 'head', label: 'Head' }, { slot: 'eyes', label: 'Eyes' }, { slot: 'ears', label: 'Hearing' },
     { slot: 'body', label: 'Body (arc rating must be ≥ incident energy)' }, { slot: 'face', label: 'Face' }, { slot: 'hands', label: 'Hands' }, { slot: 'feet', label: 'Feet' },
   ]
+  const confirmed = state.ppeConfirmed
   return (
     <div>
+      <div className="ppe-label">
+        <b>From the label on VFD-101</b>
+        {state.labelRead ? (
+          <table className="kv">
+            <tbody>
+              <tr><td>Incident energy</td><td><b>{l.incidentEnergy} cal/cm²</b> at {l.workingDistance} in</td></tr>
+              <tr><td>Minimum arc rating</td><td><b>{l.minArcRating} cal/cm²</b> clothing, AR hood or shield + balaclava</td></tr>
+              <tr><td>Shock</td><td>{l.voltage} V · class {l.gloveClass} gloves with leather protectors</td></tr>
+              <tr><td>Boundary</td><td>Arc flash {l.arcFlashBoundary} in · limited {l.limitedApproach} in · restricted {l.restrictedApproach} in</td></tr>
+            </tbody>
+          </table>
+        ) : <div className="small muted">You have not read the label yet. It is on the cabinet door in the MCC room.</div>}
+      </div>
       <div className={`ppe-status ${chk.adequate ? 'ok' : 'bad'}`}>
-        <b>{chk.adequate ? 'Adequate for the label' : 'Not adequate'}</b>
-        <div className="small">Body rating {chk.bodyRating} cal/cm² vs {state.scenario.label.incidentEnergy} cal/cm² on the label{state.labelRead ? '' : ' (read it)'}</div>
+        <b>{chk.adequate ? 'Selection meets the label' : 'Selection does not meet the label'}</b>
+        <div className="small">Body rating {chk.bodyRating} cal/cm² vs {l.incidentEnergy} cal/cm² incident energy</div>
         {chk.issues.map((i) => <div key={i} className="small">• {i}</div>)}
+        <div className="row" style={{ marginTop: 8 }}>
+          <button className="primary" onClick={() => dispatch({ type: 'ppeConfirm' })}>Confirm PPE for this task</button>
+          {confirmed && <span className={`pill ${confirmed.adequate ? 'ok' : 'bad'}`}>{confirmed.adequate ? 'CONFIRMED' : 'CONFIRMED · SHORT'}</span>}
+        </div>
       </div>
       {slots.map((sl) => (
         <div key={sl.slot}>
@@ -88,14 +107,15 @@ export function Loto({ state, dispatch }: P) {
       <button onClick={() => dispatch({ type: 'tryStart' })} disabled={!lockedOut(s)}>Attempt restart with locks on</button>
       {s.tryStepDone && <span className="pill ok" style={{ marginLeft: 8 }}>DONE</span>}
       <h4>Absence of voltage</h4>
-      <div className="small">Prove before: {provedBefore(s) ? '✓' : '—'} · Re-prove after: {provedAfter(s) ? '✓' : '—'}</div>
+      <div className="small">Proved on the live receptacle before: {provedBefore(s) ? '✓' : '—'} · re-proved after: {provedAfter(s) ? '✓' : '—'} · TIC self-test: {s.tic.selfTestAt != null ? '✓' : '—'}</div>
       <table className="kv">
         <tbody>
           {REQUIRED_DEAD.map((r) => (
-            <tr key={`${r.a}${r.b}`}><td>{POINT_LABEL[r.a]} → {POINT_LABEL[r.b]}</td><td>{r.mode === 'VDC' ? 'V DC ' : 'V AC '}{deadTestDone(s, r) ? '✓' : '—'}</td></tr>
+            <tr key={`${r.a}${r.b}`}><td>{r.label}</td><td>{r.tic ? 'TIC 300 or 87V' : '87V V DC'} {deadTestDone(s, r) ? '✓' : '—'}</td></tr>
           ))}
         </tbody>
       </table>
+      <p className="muted small">The TIC 300 PRO proves the AC conductors. It cannot see the DC bus; that one takes the 87V on V DC.</p>
     </div>
   )
 }

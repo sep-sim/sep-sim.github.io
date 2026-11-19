@@ -1,4 +1,4 @@
-# MidstreamSim
+# SEPSim (Skills Expansion Program)
 
 2D browser-based training simulator for midstream pipeline I&E (instrumentation and electrical) technicians.
 A technician gets a work order, troubleshoots a hidden fault on a 4-20 mA loop with realistic tools, repairs it,

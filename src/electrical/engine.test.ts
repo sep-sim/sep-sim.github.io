@@ -9,7 +9,7 @@ import { ELEC_SCENARIOS } from './scenarios'
 const byId = (id: string) => ELEC_SCENARIOS.find((s) => s.id === id)!
 const run = (s: ElecState, ...acts: Action[]) => acts.reduce(reduceElec, s)
 
-const FULL_PPE: Action[] = (['hardhat', 'glasses', 'hearing', 'ar12', 'faceshield', 'gloves00', 'boots'] as const).map((id) => ({ type: 'ppe', id, on: true }))
+const FULL_PPE: Action[] = [...(['hardhat', 'glasses', 'hearing', 'ar12', 'faceshield', 'gloves00', 'boots'] as const).map((id) => ({ type: 'ppe', id, on: true }) as Action), { type: 'ppeConfirm' }]
 const prework = (): Action[] => [{ type: 'readLabel' }, ...CHECKLIST.map((c) => ({ type: 'checklist', id: c.id }) as Action)]
 const vac = (a: Point, b: Point): Action[] => [{ type: 'meterMode', mode: 'VAC' }, { type: 'probe', point: a }, { type: 'probe', point: b }]
 const vdc = (a: Point, b: Point): Action[] => [{ type: 'meterMode', mode: 'VDC' }, { type: 'probe', point: a }, { type: 'probe', point: b }]
@@ -77,6 +77,19 @@ describe('PPE', () => {
     expect(ppeCheck(leather).adequate).toBe(false)
   })
 
+  it('confirming PPE against the label is logged and scored', () => {
+    const base = createElecSession(byId('term-fault'))
+    const bad = run(base, { type: 'ppe', id: 'ar8', on: true }, { type: 'ppeConfirm' })
+    expect(bad.ppeConfirmed?.adequate).toBe(false)
+    expect(bad.log.at(-1)?.kind).toBe('warn')
+    const good = run(base, ...FULL_PPE)
+    expect(good.ppeConfirmed?.adequate).toBe(true)
+    expect(good.log.at(-1)?.text).toContain('12 cal/cm²')
+    const unconfirmed = run(base, ...FULL_PPE.slice(0, -1), { type: 'readLabel' }, { type: 'finish' })
+    expect(scoreElec(unconfirmed).lines[0].points).toBe(11)
+    expect(scoreElec(run(base, ...FULL_PPE, { type: 'readLabel' }, { type: 'finish' })).lines[0].points).toBe(15)
+  })
+
   it('operating the breaker without PPE is a violation', () => {
     const s = run(createElecSession(byId('term-fault')), { type: 'breaker', closed: false })
     expect(s.violations.map((v) => v.id)).toContain('ppe_breaker')
@@ -109,6 +122,50 @@ describe('LOTO and verification', () => {
     expect(eswc(s)).toBe(true)
     expect(s.violations).toEqual([])
     expect(s.leadsLifted).toBe(true)
+  })
+
+  it('TIC 300 PRO path: self-test, prove, LOW-range checks on the AC points, 87V on the DC bus, re-prove', () => {
+    const s = run(createElecSession(byId('term-fault')),
+      ...prework(), ...FULL_PPE,
+      { type: 'breaker', closed: false }, { type: 'lp2', closed: false },
+      { type: 'lock', target: 'mcc', on: true }, { type: 'tag', target: 'mcc', on: true },
+      { type: 'lock', target: 'lp2', on: true }, { type: 'tag', target: 'lp2', on: true },
+      { type: 'tryStart' }, { type: 'wait', minutes: 15 },
+      { type: 'ticPower', on: true }, { type: 'ticSelfTest' }, { type: 'ticCheck', point: 'RECEPT_H' },
+      { type: 'goto', scene: 'drive' }, { type: 'door', open: true },
+      { type: 'ticCheck', point: 'L1' }, { type: 'ticCheck', point: 'L2' }, { type: 'ticCheck', point: 'L3' }, { type: 'ticCheck', point: 'CTRL_H' },
+      ...vdc('DC_P', 'DC_N'),
+      { type: 'goto', scene: 'mcc' }, { type: 'ticCheck', point: 'RECEPT_H' },
+    )
+    expect(s.proofs).toHaveLength(2)
+    expect(verifiedDead(s)).toBe(true)
+    expect(eswc(s)).toBe(true)
+    expect(s.violations).toEqual([])
+    const score = scoreElec(run(s, { type: 'goto', scene: 'drive' }, { type: 'liftLeads', lifted: true }, { type: 'finish' }))
+    expect(score.penalties).toEqual([])
+    expect(score.lines[1].points).toBe(35)
+  })
+
+  it('TIC detects live AC on LOW, misses it on HIGH, and sees nothing on the DC bus', () => {
+    const live = run(createElecSession(byId('term-fault')), ...FULL_PPE, { type: 'ticPower', on: true }, { type: 'ticSelfTest' }, { type: 'goto', scene: 'drive' }, { type: 'door', open: true }, { type: 'ticCheck', point: 'L1' })
+    expect(live.tic.last?.detected).toBe(true)
+    expect(live.deadTests).toHaveLength(0)
+    const high = run(live, { type: 'ticRange', range: 'HIGH' }, { type: 'ticCheck', point: 'L2' })
+    expect(high.tic.last?.detected).toBe(false)
+    expect(high.violations.map((v) => v.id)).toContain('tic_high_range')
+    expect(high.deadTests).toHaveLength(0)
+    const bus = run(live, { type: 'ticCheck', point: 'DC_P' })
+    expect(bus.tic.last?.detected).toBe(false)
+    expect(bus.tic.busChecked).toBe(true)
+    expect(bus.deadTests).toHaveLength(0)
+    const score = scoreElec(run(bus, { type: 'finish' }))
+    expect(score.penalties.some((p) => p.label.includes('cannot see DC'))).toBe(true)
+  })
+
+  it('TIC used without a self-test is noted once', () => {
+    const s = run(createElecSession(byId('term-fault')), ...FULL_PPE, { type: 'breaker', closed: false }, { type: 'ticPower', on: true }, { type: 'goto', scene: 'drive' }, { type: 'door', open: true }, { type: 'ticCheck', point: 'L1' }, { type: 'ticCheck', point: 'L2' })
+    expect(s.violations.filter((v) => v.id === 'tic_no_selftest')).toHaveLength(1)
+    expect(s.deadTests).toHaveLength(2)
   })
 
   it('touching conductors before verification is a violation', () => {

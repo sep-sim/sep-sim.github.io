@@ -2,7 +2,7 @@
 // 6-lead motor circuit, and every technician action with its NFPA 70E consequences.
 
 import type {
-  DeadTest, DiagnosisId, ElecScenario, ElecState, LockTarget, LogKind, MeggerLeadId, MeggerMode, MeggerResult, MeggerVolts, MeterMode, Point, PpeId, RepairId, Scene,
+  DeadTest, DiagnosisId, ElecScenario, ElecState, LockTarget, LogKind, MeggerLeadId, MeggerMode, MeggerResult, MeggerVolts, MeterMode, Point, PpeId, RepairId, Scene, TicRange,
 } from './types'
 import { CHECKLIST, DIAGNOSES, POINT_LABEL, POINT_SCENE, PPE_ITEMS, REPAIRS } from './types'
 
@@ -15,6 +15,7 @@ export type Action =
   | { type: 'goto'; scene: Scene }
   | { type: 'readLabel' }
   | { type: 'ppe'; id: PpeId; on: boolean }
+  | { type: 'ppeConfirm' }
   | { type: 'breaker'; closed: boolean }
   | { type: 'lp2'; closed: boolean }
   | { type: 'lock'; target: LockTarget; on: boolean }
@@ -30,6 +31,10 @@ export type Action =
   | { type: 'meggerLead'; lead: MeggerLeadId; point: Point }
   | { type: 'meggerClear' }
   | { type: 'meggerTest' }
+  | { type: 'ticPower'; on: boolean }
+  | { type: 'ticRange'; range: TicRange }
+  | { type: 'ticSelfTest' }
+  | { type: 'ticCheck'; point: Point }
   | { type: 'liftLeads'; lifted: boolean }
   | { type: 'cover'; off: boolean }
   | { type: 'inspectBox' }
@@ -49,6 +54,9 @@ export const PENALTY: Record<string, { points: number; label: string }> = {
   no_prove_before: { points: -10, label: 'Absence-of-voltage test without proving the meter on a known source first' },
   no_prove_after: { points: -10, label: 'Meter not re-proved after testing dead' },
   bus_ac_only: { points: -10, label: 'DC bus checked with AC volts only (reads zero even at 650 V DC)' },
+  bus_tic_only: { points: -10, label: 'DC bus checked with a non-contact AC detector only: it cannot see DC' },
+  tic_high_range: { points: -15, label: 'TIC 300 PRO on HIGH range at 480 V: threshold is 1500 V, a live bus reads dead' },
+  tic_no_selftest: { points: -5, label: 'Non-contact detector used without a self-test first' },
   work_not_verified: { points: -20, label: 'Hands on conductors before absence of voltage was verified' },
   work_not_locked: { points: -15, label: 'Hands on conductors before lockout was applied' },
   bus_charged: { points: -10, label: 'Worked on terminals with the DC bus above 50 V (CHARGE lamp lit)' },
@@ -90,6 +98,7 @@ export function createElecSession(scenario: ElecScenario): ElecState {
     checklist: Object.fromEntries(CHECKLIST.map((c) => [c.id, false])),
     labelRead: false,
     ppe: ['cotton', 'boots'],
+    ppeConfirmed: null,
     mccClosed: true,
     lp2Closed: true,
     locks: { mcc: false, lp2: false },
@@ -104,6 +113,7 @@ export function createElecSession(scenario: ElecScenario): ElecState {
     jbox: { coverOff: false, feedersUnbolted: false, lugsCleared: false, wyeOpen: false, inspected: false },
     meter: { mode: 'OFF', probeA: null, probeB: null },
     megger: { mode: 'OFF', volts: 500, minus: null, plus: null, testing: false, tStart: null, result: null, inhibit: null },
+    tic: { on: false, range: 'LOW', selfTestAt: null, last: null, busChecked: false },
     proofs: [],
     deadTests: [],
     insTests: [],
@@ -199,33 +209,49 @@ export function ppeCheck(s: ElecState): { adequate: boolean; issues: string[]; b
 
 // ---- verification tracking ------------------------------------------------------------------------
 
-export const REQUIRED_DEAD: { a: Point; b: Point; mode: MeterMode }[] = [
-  { a: 'L1', b: 'L2', mode: 'VAC' }, { a: 'L2', b: 'L3', mode: 'VAC' }, { a: 'L1', b: 'L3', mode: 'VAC' },
-  { a: 'L1', b: 'GND', mode: 'VAC' }, { a: 'L2', b: 'GND', mode: 'VAC' }, { a: 'L3', b: 'GND', mode: 'VAC' },
-  { a: 'DC_P', b: 'DC_N', mode: 'VDC' },
-  { a: 'CTRL_H', b: 'CTRL_N', mode: 'VAC' },
+/**
+ * Absence-of-voltage checks that must be done before hands go on conductors. AC points accept either the TIC 300 PRO on
+ * LOW range or the 87V on V AC to ground. The DC bus is DC: only the 87V on V DC proves it, a non-contact detector sees nothing.
+ */
+export const REQUIRED_DEAD: { a: Point; b: Point; mode: MeterMode; tic: boolean; label: string }[] = [
+  { a: 'L1', b: 'GND', mode: 'VAC', tic: true, label: 'R/L1 to ground' },
+  { a: 'L2', b: 'GND', mode: 'VAC', tic: true, label: 'S/L2 to ground' },
+  { a: 'L3', b: 'GND', mode: 'VAC', tic: true, label: 'T/L3 to ground' },
+  { a: 'CTRL_H', b: 'CTRL_N', mode: 'VAC', tic: true, label: 'X1-1 120 V control' },
+  { a: 'DC_P', b: 'DC_N', mode: 'VDC', tic: false, label: 'DC bus PA/+ to PC/− (V DC only)' },
 ]
 
 function pairKey(a: Point, b: Point): string {
   return [a, b].sort().join('-')
 }
 
-export function deadTestDone(s: ElecState, r: { a: Point; b: Point; mode: MeterMode }): boolean {
-  return s.deadTests.some((d) => pairKey(d.a, d.b) === pairKey(r.a, r.b) && d.mode === r.mode)
+function satisfies(r: (typeof REQUIRED_DEAD)[number], d: DeadTest): boolean {
+  if (d.instrument === 'tic') return r.tic && d.a === r.a
+  if (d.mode !== r.mode) return false
+  if (r.a === 'CTRL_H') return (d.a === 'CTRL_H' || d.b === 'CTRL_H') && (d.a === 'CTRL_N' || d.b === 'CTRL_N' || d.a === 'GND' || d.b === 'GND')
+  return pairKey(d.a, d.b) === pairKey(r.a, r.b)
+}
+
+export function deadTestDone(s: ElecState, r: (typeof REQUIRED_DEAD)[number]): boolean {
+  return s.deadTests.some((d) => satisfies(r, d))
 }
 
 export function verifiedDead(s: ElecState): boolean {
   return REQUIRED_DEAD.every((r) => deadTestDone(s, r))
 }
 
+function requiredRecords(s: ElecState): DeadTest[] {
+  return s.deadTests.filter((d) => REQUIRED_DEAD.some((r) => satisfies(r, d)))
+}
+
 export function provedBefore(s: ElecState): boolean {
-  const first = s.deadTests.find((d) => REQUIRED_DEAD.some((r) => pairKey(r.a, r.b) === pairKey(d.a, d.b)))
-  if (!first) return false
-  return s.proofs.some((t) => t <= first.t)
+  const req = requiredRecords(s)
+  if (req.length === 0) return false
+  return s.proofs.some((t) => t <= req[0].t)
 }
 
 export function provedAfter(s: ElecState): boolean {
-  const req = s.deadTests.filter((d) => REQUIRED_DEAD.some((r) => pairKey(r.a, r.b) === pairKey(d.a, d.b)))
+  const req = requiredRecords(s)
   if (req.length === 0) return false
   const last = Math.max(...req.map((d) => d.t))
   return s.proofs.some((t) => t >= last)
@@ -480,7 +506,7 @@ function placeLead(s: ElecState, p: Point): ElecState {
   }
   const live = m.mode === 'VAC' ? v.ac > 30 : Math.abs(v.dc) > 30
   if (!live) {
-    const d: DeadTest = { a, b, mode: m.mode, t: next.t }
+    const d: DeadTest = { a, b, mode: m.mode, t: next.t, instrument: 'dmm' }
     next = { ...next, deadTests: [...next.deadTests, d] }
   }
   return log(next, 'measure', `87V ${m.mode === 'VAC' ? 'V AC' : 'V DC'} ${POINT_LABEL[a]} → ${POINT_LABEL[b]}: ${reading}${live ? '  ⚡ LIVE' : ''}`)
@@ -540,6 +566,41 @@ function meggerTick(s: ElecState): ElecState {
   return s
 }
 
+/** AC magnitude a non-contact detector sees at a point, volts to ground. */
+export function ticVolts(s: ElecState, p: Point): number {
+  const ph = acPhasor(s, p)
+  return Math.hypot(ph[0], ph[1])
+}
+
+function ticCheck(s: ElecState, p: Point): ElecState {
+  const t = s.tic
+  if (!t.on) return log(s, 'warn', 'TIC 300 PRO is off.')
+  if (POINT_SCENE[p] !== s.scene) return s
+  const ac = ticVolts(s, p)
+  const threshold = t.range === 'LOW' ? 30 : 1500
+  const detected = ac >= threshold
+  let next: ElecState = { ...s, tic: { ...t, last: { point: p, detected, t: s.t } }, tests: s.tests + 1 }
+  const isDc = p === 'DC_P' || p === 'DC_N'
+  if (POINT_SCENE[p] === 'drive' && !verifiedDead(s)) {
+    const ppe = ppeCheck(s)
+    if (!ppe.adequate) next = violate(next, 'ppe_test', ppe.issues[0])
+  }
+  next = log(next, 'measure', `TIC 300 PRO ${t.range} at ${POINT_LABEL[p]}: ${detected ? '⚡ tip flashing, beeper sounding – AC voltage present' : 'no indication'}`)
+  if (detected) {
+    if (p.startsWith('RECEPT')) next = { ...next, proofs: [...next.proofs, next.t] }
+    return next
+  }
+  if (isDc) {
+    next = { ...next, tic: { ...next.tic, busChecked: true } }
+    return log(next, 'info', `Bus is DC. A non-contact AC detector shows nothing whether the bus is dead or holding ${busVolts(s).toFixed(0)} V. Use the 87V on V DC.`)
+  }
+  if (t.range === 'HIGH') return violate(next, 'tic_high_range', ac >= 30 ? `${POINT_LABEL[p]} is live at ${ac.toFixed(0)} V.` : undefined)
+  if (p.startsWith('RECEPT')) return next
+  if (t.selfTestAt == null && !next.violations.some((v) => v.id === 'tic_no_selftest')) next = violate(next, 'tic_no_selftest')
+  const d: DeadTest = { a: p, b: 'GND', mode: 'VAC', t: next.t, instrument: 'tic' }
+  return { ...next, deadTests: [...next.deadTests, d] }
+}
+
 function requireHandsOn(s: ElecState, where: 'drive' | 'motor'): ElecState {
   let next = s
   if (!lockedOut(s)) next = violate(next, 'work_not_locked')
@@ -597,6 +658,15 @@ export function reduceElec(s: ElecState, a: Action): ElecState {
       }
       const next = { ...s, ppe }
       return a.on ? log(next, 'action', `Donned: ${item.label}`) : next
+    }
+    case 'ppeConfirm': {
+      const chk = ppeCheck(s)
+      const l = s.scenario.label
+      const next: ElecState = { ...s, ppeConfirmed: { t: s.t, adequate: chk.adequate } }
+      if (chk.adequate) {
+        return log(next, 'action', `PPE confirmed against the label: ${chk.bodyRating} cal/cm² arc-rated clothing for ${l.incidentEnergy} cal/cm² at ${l.workingDistance} in, head and face protection, class ${l.gloveClass} gloves, hearing, eyes, leather footwear.`)
+      }
+      return log(next, 'warn', `PPE confirmed but does not meet the label: ${chk.issues.join('; ')}.`)
     }
     case 'breaker': {
       if (a.closed === s.mccClosed) return s
@@ -695,6 +765,16 @@ export function reduceElec(s: ElecState, a: Action): ElecState {
     }
     case 'meggerTest':
       return s.megger.testing ? meggerStop(s) : meggerStart(s)
+    case 'ticPower':
+      return { ...s, tic: { ...s.tic, on: a.on, last: null } }
+    case 'ticRange':
+      return s.tic.on ? { ...s, tic: { ...s.tic, range: a.range, last: null } } : s
+    case 'ticSelfTest': {
+      if (!s.tic.on) return log(s, 'warn', 'TIC 300 PRO is off.')
+      return log({ ...s, tic: { ...s.tic, selfTestAt: s.t, last: null } }, 'action', 'TIC 300 PRO self-test: tip flashes, beeper sounds. Unit OK.')
+    }
+    case 'ticCheck':
+      return ticCheck(s, a.point)
     case 'liftLeads': {
       if (a.lifted === s.leadsLifted) return s
       if (!s.doorOpen) return log(s, 'warn', 'Open the cabinet door first.')

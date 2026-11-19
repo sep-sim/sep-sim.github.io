@@ -134,14 +134,25 @@ export const CHECKLIST: ChecklistItem[] = [
   { id: 'sources', label: 'Review one-line E-401 and list every source: MCC-3 bucket 3B (480 V), LP-2 ckt 7 (120 V control), DC bus capacitors' },
   { id: 'notify', label: 'Notify operations: P-101 out of service, standby pump P-102 carrying the station' },
   { id: 'jsa', label: 'JSA reviewed; arc flash boundary marked; second person at the boundary' },
-  { id: 'meter', label: 'Fluke 87V (CAT III 1000 V) and Megger S1-568 checked, leads inspected, both in cal' },
+  { id: 'meter', label: 'TIC 300 PRO self-test passes; Fluke 87V (CAT III 1000 V) and Megger S1-568 in cal, leads inspected' },
 ]
 
 export type LogKind = 'info' | 'measure' | 'action' | 'warn' | 'inspect' | 'violation'
 export interface LogEntry { t: number; kind: LogKind; text: string }
 
 export interface InsTest { a: Point; b: Point; volts: MeggerVolts; reading: string; t: number; mode: MeggerMode; dar?: number; pi?: number }
-export interface DeadTest { a: Point; b: Point; mode: MeterMode; t: number }
+export type Instrument = 'dmm' | 'tic'
+export interface DeadTest { a: Point; b: Point; mode: MeterMode; t: number; instrument: Instrument }
+
+export type TicRange = 'LOW' | 'HIGH'
+export interface TicState {
+  on: boolean
+  range: TicRange
+  selfTestAt: number | null
+  last: { point: Point; detected: boolean; t: number } | null
+  /** DC bus was checked with the TIC, which cannot see DC */
+  busChecked: boolean
+}
 
 export interface ElecState {
   scenario: ElecScenario
@@ -151,6 +162,8 @@ export interface ElecState {
   checklist: Record<string, boolean>
   labelRead: boolean
   ppe: PpeId[]
+  /** When the technician confirmed the PPE selection against the label, and whether it was adequate then. */
+  ppeConfirmed: { t: number; adequate: boolean } | null
   mccClosed: boolean
   lp2Closed: boolean
   locks: Record<LockTarget, boolean>
@@ -166,6 +179,7 @@ export interface ElecState {
   jbox: { coverOff: boolean; feedersUnbolted: boolean; lugsCleared: boolean; wyeOpen: boolean; inspected: boolean }
   meter: { mode: MeterMode; probeA: Point | null; probeB: Point | null }
   megger: MeggerState
+  tic: TicState
   proofs: number[]
   deadTests: DeadTest[]
   insTests: InsTest[]

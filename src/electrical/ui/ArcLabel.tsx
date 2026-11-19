@@ -1,6 +1,6 @@
 import type { ArcLabel as Label } from '../types'
 
-export function ArcLabelModal({ label, onClose }: { label: Label; onClose: () => void }) {
+export function ArcLabelModal({ label, onClose, onDress }: { label: Label; onClose: () => void; onDress: () => void }) {
   return (
     <div className="modal-back" onClick={onClose}>
       <div className="arc-label" onClick={(e) => e.stopPropagation()}>
@@ -32,7 +32,10 @@ export function ArcLabelModal({ label, onClose }: { label: Label; onClose: () =>
           <div>Fed from: {label.fedFrom}</div>
           <div>Study date {label.studyDate} · IEEE 1584-2018 · NFPA 70E · Station 4 Electrical</div>
         </div>
-        <button className="primary" onClick={onClose}>Close</button>
+        <div className="row" style={{ padding: '0 10px 10px' }}>
+          <button className="primary" onClick={onDress}>Dress for this label →</button>
+          <button onClick={onClose}>Close</button>
+        </div>
       </div>
     </div>
   )

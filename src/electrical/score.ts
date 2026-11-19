@@ -24,8 +24,10 @@ export function scoreElec(s: ElecState): ElecScore {
   const checks = CHECKLIST.filter((c) => s.checklist[c.id]).length
   const hazardPts = (s.labelRead ? 5 : 0) + Math.round((checks / CHECKLIST.length) * 5)
   const ppeViolations = s.violations.filter((v) => v.id.startsWith('ppe_')).length
-  const ppePts = ppeViolations === 0 ? 10 : 0
-  lines.push({ label: 'Hazard assessment and PPE', points: hazardPts + ppePts, max: 20, note: `${s.labelRead ? 'label read' : 'label not read'}, ${checks}/${CHECKLIST.length} pre-work items, ${ppeViolations} PPE violation${ppeViolations === 1 ? '' : 's'}` })
+  const confirmed = s.ppeConfirmed != null && s.ppeConfirmed.adequate
+  const ppePts = ppeViolations > 0 ? 0 : confirmed ? 10 : 6
+  const ppeNote = ppeViolations > 0 ? `${ppeViolations} PPE violation${ppeViolations === 1 ? '' : 's'}` : confirmed ? 'PPE confirmed against the label' : 'PPE adequate but never confirmed against the label'
+  lines.push({ label: 'Hazard assessment and PPE', points: hazardPts + ppePts, max: 20, note: `${s.labelRead ? 'label read' : 'label not read'}, ${checks}/${CHECKLIST.length} pre-work items, ${ppeNote}` })
 
   // LOTO and verification (35)
   let loto = 0
@@ -80,8 +82,10 @@ export function scoreElec(s: ElecState): ElecScore {
   }
   if (!s.violations.some((v) => v.id === 'no_prove_before') && s.deadTests.length > 0 && !provedBefore(s)) penalties.push({ label: PENALTY.no_prove_before.label, points: PENALTY.no_prove_before.points, max: 0, note: '' })
   if (dead && !provedAfter(s)) penalties.push({ label: PENALTY.no_prove_after.label, points: PENALTY.no_prove_after.points, max: 0, note: '' })
-  const busAcOnly = s.deadTests.some((d) => [d.a, d.b].includes('DC_P') && d.mode === 'VAC') && !s.deadTests.some((d) => [d.a, d.b].includes('DC_P') && d.mode === 'VDC')
+  const busVdc = s.deadTests.some((d) => [d.a, d.b].includes('DC_P') && d.mode === 'VDC' && d.instrument === 'dmm')
+  const busAcOnly = s.deadTests.some((d) => [d.a, d.b].includes('DC_P') && d.mode === 'VAC' && d.instrument === 'dmm') && !busVdc
   if (busAcOnly) penalties.push({ label: PENALTY.bus_ac_only.label, points: PENALTY.bus_ac_only.points, max: 0, note: '' })
+  if (s.tic.busChecked && !busVdc) penalties.push({ label: PENALTY.bus_tic_only.label, points: PENALTY.bus_tic_only.points, max: 0, note: '' })
 
   const raw = lines.reduce((a, l) => a + l.points, 0) + penalties.reduce((a, l) => a + l.points, 0)
   const total = Math.max(0, raw)

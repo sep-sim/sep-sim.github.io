@@ -45,7 +45,8 @@ svg.scene { width: 100%; height: 100%; font-family: inherit; }
 .arc-col span { color: #444; }
 .arc-ppe { border-top: 2px solid #111; padding: 8px 10px; line-height: 1.4; }
 .arc-foot { border-top: 2px solid #111; padding: 6px 10px; font-size: 10px; color: #333; display: grid; gap: 2px; }
-.arc-label button { margin: 8px 10px 10px; }
+.ppe-label { background: var(--panel-2); border-radius: 8px; padding: 8px 10px; margin-bottom: 8px; font-size: 13px; }
+.ppe-label table { margin-top: 4px; }
 
 /* Fluke 1587 */
 .f1587 { display: grid; gap: 10px; }
@@ -153,3 +154,30 @@ svg.scene { width: 100%; height: 100%; font-family: inherit; }
 .mg-logo small { font-size: 10px; font-weight: 700; color: #333; }
 .mg-logo em { font-size: 7px; font-style: normal; color: #444; letter-spacing: 0.04em; }
 .f1587-keys.three { grid-template-columns: 1fr 1fr 1fr; }
+
+/* ---------- Amprobe TIC 300 PRO ---------- */
+.tic { display: grid; gap: 10px; justify-items: center; }
+.tic-unit { display: grid; justify-items: center; width: 150px; }
+.tic-tip { width: 0; height: 0; border-left: 22px solid transparent; border-right: 22px solid transparent; border-bottom: 150px solid #f3b61f; filter: drop-shadow(0 0 0 transparent); transition: filter 0.1s; }
+.tic-tip.flash { border-bottom-color: #ff5a1f; filter: drop-shadow(0 0 14px #ff2d2d); animation: ticflash 0.3s steps(2) infinite; }
+@keyframes ticflash { to { border-bottom-color: #f3b61f; } }
+.tic-collar { width: 70px; height: 16px; background: #d89a14; border-radius: 8px 8px 0 0; margin-top: -2px; }
+.tic-body { position: relative; width: 120px; height: 190px; background: linear-gradient(#e0252a, #b8151a); border-radius: 12px 12px 40px 40px; border: 3px solid #1a1a1a; display: grid; justify-items: center; align-content: start; padding-top: 8px; gap: 4px; }
+.tic-brand { color: #fff; font-weight: 900; font-size: 11px; letter-spacing: 0.05em; }
+.tic-model { color: #fff; font-weight: 800; font-size: 11px; text-align: center; line-height: 1.1; }
+.tic-model small { font-weight: 500; font-size: 8px; }
+.tic-btn { border: 2px solid #111; border-radius: 50%; width: 30px; height: 30px; padding: 0; font-size: 8px; font-weight: 800; line-height: 1; }
+.tic-btn.test { position: absolute; top: 14px; right: 8px; background: #1b1b1b; color: #fff; width: 28px; height: 28px; }
+.tic-btn.onoff { background: #f3b61f; color: #111; width: 34px; height: 34px; margin-top: 4px; }
+.tic-btn.onoff.on { box-shadow: 0 0 0 3px #fff3 inset, 0 0 8px #fff8; }
+.tic-ranges { display: flex; gap: 10px; margin-top: 4px; }
+.tic-ranges div { display: grid; justify-items: center; gap: 2px; }
+.tic-ranges small { color: #fff; font-size: 5px; white-space: nowrap; }
+.tic-btn.range { background: #1b1b1b; color: #fff; }
+.tic-btn.range.sel { box-shadow: 0 0 0 2px #f3b61f; }
+.tic-led { position: absolute; bottom: 10px; width: 6px; height: 6px; border-radius: 50%; background: #3a1414; }
+.tic-led.on { background: #3ddc84; box-shadow: 0 0 6px #3ddc84; }
+.tic-handle { width: 46px; height: 120px; background: linear-gradient(90deg, #2a2a2a, #4a4a4a, #2a2a2a); border-radius: 6px 6px 22px 22px; border: 2px solid #111; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 8px; background-size: 100% 8px; }
+.tic-handle span { width: 12px; height: 12px; border-radius: 50%; background: #111; border: 2px solid #555; }
+.tic-readout { font-family: Consolas, monospace; font-size: 13px; padding: 6px 12px; border-radius: 6px; background: var(--panel-2); width: 100%; text-align: center; }
+.tic-readout.hot { background: #4d1f22; color: var(--bad); font-weight: 700; }

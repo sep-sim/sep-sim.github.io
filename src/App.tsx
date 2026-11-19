@@ -28,7 +28,7 @@ function Sim({ scenario, onExit }: { scenario: Scenario; onExit: () => void }) {
     <div className="sim">
       <header>
         <div>
-          <span className="brand">MidstreamSim</span>
+          <span className="brand">SEPSim</span>
           <span className="muted"> · {scenario.title}</span>
         </div>
         <div className="muted">{scenario.difficulty} · t+{Math.floor(state.t / 60)}m{String(state.t % 60).padStart(2, '0')}s</div>
@@ -61,7 +61,7 @@ type Pick = { kind: 'loop'; s: Scenario } | { kind: 'elec'; s: ElecScenario }
 function Menu({ onPick }: { onPick: (p: Pick) => void }) {
   return (
     <div className="menu">
-      <h1><span className="brand">MidstreamSim</span> · I&amp;E field training</h1>
+      <h1><span className="brand">SEPSim</span> · I&amp;E field training</h1>
       <div className="menu-section">
         <h2>Electrical · VFD ground fault, lockout, verification, insulation testing</h2>
         <p className="muted">

@@ -1,8 +1,8 @@
-# MidstreamSim
+# SEPSim — Skills Expansion Program simulator
 
-A 2D training simulator for midstream pipeline I&E technicians. Each work order hides one fault on a 4-20 mA
-pressure loop at a pump station. The technician does pre-work, finds the fault with a multimeter, HART communicator
-and manifold, repairs it, proves the point is back in service on the HMI, and gets a scored debrief.
+Field-realistic training for I&E and electrical technicians in midstream pipeline operations. Each work order hides a
+fault; the technician does the pre-work, dresses for the hazard, isolates, verifies, tests with the instruments the crew
+actually carries, repairs, restores, and gets a scored debrief with every violation called out.
 
 ## Run
 
@@ -22,28 +22,27 @@ Open http://localhost:5173.
 | `pnpm test` | Engine tests (vitest) |
 | `pnpm lint` | oxlint |
 
-## What is simulated
+## Modules
 
-- RTU cabinet: 24 VDC supply, fuse, terminal block, analog input card with 250 Ω load
-- Shielded field cable to a Class I Div 2 junction box
-- 2-wire HART pressure transmitter PT-101 with local display and test terminals
-- Isolation valve, test port, impulse line and a pipeline gauge for ground truth
-- SCADA HMI with live value, quality, alarms and trend
+### Electrical: VFD-101 ground fault
 
-Tools: multimeter (V DC, mA DC in series, Ω on a dead loop), HART communicator (poll, loop test, set range),
-hand pump, fuse pull, visual inspection of each enclosure.
+Toshiba VF-AS3 on a 100 HP pump trips EF2. Scenes are drawn as places: the MCC room, the open drive cabinet, the motor
+on its pad and the inside of its six-lead terminal box.
 
-Faults: open conductors, loose terminations, blown fuse, dead supply, transmitter failed high/low, range mismatch,
-closed isolation, plugged impulse line, reversed polarity.
+- Arc flash label on the cabinet; PPE locker graded against its incident energy
+- Two energy sources (480 V bucket, 120 V control circuit), lockout, tagout, try-step, DC bus discharge
+- Amprobe TIC 300 PRO for AC verification with self-test and known-live proof; Fluke 87V on V DC for the bus
+- Lift the motor leads at the isolation contactor, then Megger S1-568: IR, IR(t), DAR, PI at 500 V
+- Unbolt the feeder lugs and the T4-T5-T6 wye bar to localize a termination, cable or winding fault
+- Three work orders, 100 points on the textbook path, penalties for the real mistakes
+
+### Instrumentation: PT-101 loop troubleshooting
+
+A 4-20 mA pressure loop at a pump station: RTU cabinet, junction box, HART transmitter, isolation manifold, SCADA HMI.
+Tools are a Fluke 789 ProcessMeter and an AMS Trex. Eight work orders: opens, loose terminations, blown fuse,
+transmitter failure, range mismatch, closed isolation, plugged impulse line, reversed polarity.
 
 ## Scoring
 
-| Area | Points |
-|---|---|
-| Pre-work and safety (checklist done before the first field action) | 25 |
-| Root cause diagnosis | 30 |
-| Repair and verified return to service | 25 |
-| Efficiency (measurements vs target, unnecessary repairs) | 20 |
-
-Penalties for measuring resistance on a live loop, pumping against an open isolation valve, and working a live
-SCADA point without notifying the controller.
+Each module has its own rubric in `score.ts`. Pre-work and hazard assessment, isolation and verification, testing and
+diagnosis, repair and return to service, efficiency, minus penalties for safety violations.
