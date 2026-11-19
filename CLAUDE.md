@@ -58,7 +58,7 @@ src/electrical/engine.ts     reducer + physics: busVolts() decay, voltageBetween
 src/electrical/score.ts      rubric: hazard/PPE 20, LOTO+verification 35, testing+diagnosis 25, restoration 10, efficiency 10, penalties
 src/electrical/scenarios.ts  3 work orders: termination fault, winding fault, cable fault
 src/electrical/ui/           ElecSim (layout), MccScene / DriveScene / MotorScene (SVG "in the field" views),
-                             Fluke87V (DMM), MeggerS1 (S1-568: IR, IR(t), DAR, PI with absorption model), Panels, ArcLabel modal
+                             Fluke789Elec (the shared 789 face wired to this module), MeggerS1 (S1-568: IR, IR(t), DAR, PI with absorption model), Panels, ArcLabel modal
 ```
 
 Model notes worth knowing before touching it:

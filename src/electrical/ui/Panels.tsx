@@ -1,5 +1,5 @@
 import type { Action } from '../engine'
-import { busVolts, chargeLampOn, keypadLit, ppeCheck, suitedUp, REQUIRED_DEAD, deadTestDone, provedBefore, provedAfter, lockedOut } from '../engine'
+import { busVolts, chargeLampOn, keypadLit, ppeCheck, suitedUp, ticAllowed, REQUIRED_DEAD, deadTestDone, provedBefore, provedAfter, lockedOut } from '../engine'
 import type { ElecState } from '../types'
 import { CHECKLIST, DIAGNOSES, POINT_LABEL, PPE_ITEMS, REPAIRS } from '../types'
 import { Worker } from './Worker'
@@ -139,11 +139,11 @@ export function Loto({ state, dispatch }: P) {
       <table className="kv">
         <tbody>
           {REQUIRED_DEAD.map((r) => (
-            <tr key={`${r.a}${r.b}`}><td>{r.label}</td><td>{r.tic ? 'TIC 300 or 87V' : '87V V DC'} {deadTestDone(s, r) ? '✓' : '—'}</td></tr>
+            <tr key={`${r.a}${r.b}`}><td>{r.label}</td><td>{r.mode === 'VDC' ? '789 V DC' : r.tic && ticAllowed(s) ? 'TIC 300 or 789' : '789 V AC'} {deadTestDone(s, r) ? '✓' : '—'}</td></tr>
           ))}
         </tbody>
       </table>
-      <p className="muted small">The TIC 300 PRO proves the AC conductors. It cannot see the DC bus; that one takes the 87V on V DC.</p>
+      <p className="muted small">{ticAllowed(s) ? 'The TIC 300 PRO proves the AC conductors above 1,000 V. It cannot see the DC bus; that one takes the 789 on V DC.' : `This is ${s.scenario.label.voltage} V equipment: verify with the Fluke 789 by contact, live-dead-live. The TIC 300 PRO is for systems over 1,000 V.`}</p>
     </div>
   )
 }

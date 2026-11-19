@@ -35,7 +35,7 @@ on its pad and the inside of its six-lead terminal box.
 
 - Arc flash label on the cabinet; PPE locker graded against its incident energy
 - Two energy sources (480 V bucket, 120 V control circuit), lockout, tagout, try-step, DC bus discharge
-- Amprobe TIC 300 PRO for AC verification with self-test and known-live proof; Fluke 87V on V DC for the bus
+- Fluke 789 for absence-of-voltage verification by contact, live-dead-live; Amprobe TIC 300 PRO reserved for systems over 1,000 V
 - Lift the motor leads at the isolation contactor, then Megger S1-568: IR, IR(t), DAR, PI at 500 V
 - Unbolt the feeder lugs and the T4-T5-T6 wye bar to localize a termination, cable or winding fault
 - Three work orders, 100 points on the textbook path, penalties for the real mistakes

@@ -2,7 +2,7 @@
 // 6-lead motor circuit, and every technician action with its NFPA 70E consequences.
 
 import type {
-  DeadTest, DiagnosisId, ElecScenario, ElecState, LockTarget, LogKind, MeggerLeadId, MeggerMode, MeggerResult, MeggerVolts, MeterMode, Point, PpeId, RepairId, Scene, TicRange,
+  DeadTest, DiagnosisId, ElecScenario, ElecState, LockTarget, LogKind, MeggerLeadId, MeggerMode, MeggerResult, MeggerVolts, MeterKey, MeterMode, Point, PpeId, RepairId, Scene, TicRange,
 } from './types'
 import { CHECKLIST, DIAGNOSES, POINT_LABEL, POINT_SCENE, PPE_ITEMS, REPAIRS } from './types'
 
@@ -24,6 +24,7 @@ export type Action =
   | { type: 'keypad'; key: 'RUN' | 'STOP' | 'RESET' }
   | { type: 'door'; open: boolean }
   | { type: 'meterMode'; mode: MeterMode }
+  | { type: 'meterKey'; key: MeterKey }
   | { type: 'probe'; point: Point }
   | { type: 'meterClear' }
   | { type: 'meggerMode'; mode: MeggerMode }
@@ -111,7 +112,7 @@ export function createElecSession(scenario: ElecScenario): ElecState {
     drive: { faulted: true, running: false, damaged: false, display: scenario.drive.faultCode },
     leadsLifted: false,
     jbox: { coverOff: false, feedersUnbolted: false, lugsCleared: false, wyeOpen: false, inspected: false },
-    meter: { mode: 'OFF', probeA: null, probeB: null },
+    meter: { mode: 'OFF', probeA: null, probeB: null, held: null, rel: null, manualRange: false, backlight: false },
     megger: { mode: 'OFF', volts: 500, minus: null, plus: null, testing: false, tStart: null, result: null, inhibit: null },
     tic: { on: false, range: 'LOW', selfTestAt: null, last: null, busChecked: false },
     proofs: [],
@@ -225,7 +226,7 @@ function requireSuit(s: ElecState, id: string): ElecState {
 
 /**
  * Absence-of-voltage checks that must be done before hands go on conductors. AC points accept either the TIC 300 PRO on
- * LOW range or the 87V on V AC to ground. The DC bus is DC: only the 87V on V DC proves it, a non-contact detector sees nothing.
+ * LOW range or the 789 on V AC to ground. The DC bus is DC: only the 789 on V DC proves it, a non-contact detector sees nothing.
  */
 export const REQUIRED_DEAD: { a: Point; b: Point; mode: MeterMode; tic: boolean; label: string }[] = [
   { a: 'L1', b: 'GND', mode: 'VAC', tic: true, label: 'R/L1 to ground' },
@@ -239,15 +240,20 @@ function pairKey(a: Point, b: Point): string {
   return [a, b].sort().join('-')
 }
 
-function satisfies(r: (typeof REQUIRED_DEAD)[number], d: DeadTest): boolean {
-  if (d.instrument === 'tic') return r.tic && d.a === r.a
+/** Site procedure: the TIC 300 PRO is the verification instrument only on systems over 1,000 V. */
+export function ticAllowed(s: ElecState): boolean {
+  return s.scenario.label.voltage > 1000
+}
+
+function satisfies(s: ElecState, r: (typeof REQUIRED_DEAD)[number], d: DeadTest): boolean {
+  if (d.instrument === 'tic') return r.tic && ticAllowed(s) && d.a === r.a
   if (d.mode !== r.mode) return false
   if (r.a === 'CTRL_H') return (d.a === 'CTRL_H' || d.b === 'CTRL_H') && (d.a === 'CTRL_N' || d.b === 'CTRL_N' || d.a === 'GND' || d.b === 'GND')
   return pairKey(d.a, d.b) === pairKey(r.a, r.b)
 }
 
 export function deadTestDone(s: ElecState, r: (typeof REQUIRED_DEAD)[number]): boolean {
-  return s.deadTests.some((d) => satisfies(r, d))
+  return s.deadTests.some((d) => satisfies(s, r, d))
 }
 
 export function verifiedDead(s: ElecState): boolean {
@@ -255,7 +261,7 @@ export function verifiedDead(s: ElecState): boolean {
 }
 
 function requiredRecords(s: ElecState): DeadTest[] {
-  return s.deadTests.filter((d) => REQUIRED_DEAD.some((r) => satisfies(r, d)))
+  return s.deadTests.filter((d) => REQUIRED_DEAD.some((r) => satisfies(s, r, d)))
 }
 
 export function provedBefore(s: ElecState): boolean {
@@ -484,7 +490,30 @@ function meterReadingText(s: ElecState): string | null {
   const v = voltageBetween(s, m.probeA, m.probeB)
   if (m.mode === 'VAC') return `${v.ac.toFixed(1)} V AC`
   if (m.mode === 'VDC') return `${v.dc.toFixed(1)} V DC`
-  return isLive(s, m.probeA, m.probeB) ? 'OL ⚠ live' : 'OL'
+  if (m.mode === 'mVDC') return Math.abs(v.dc) > 0.3 || v.ac > 0.3 ? 'OL mV DC' : `${(v.dc * 1000).toFixed(1)} mV DC`
+  if (m.mode === 'OHM') return isLive(s, m.probeA, m.probeB) ? 'OL ⚠ live' : 'OL'
+  return '0.000 mA'
+}
+
+function meterKey(s: ElecState, key: MeterKey): ElecState {
+  const m = s.meter
+  if (m.mode === 'OFF') return s
+  switch (key) {
+    case 'HOLD': {
+      if (m.held != null) return { ...s, meter: { ...m, held: null } }
+      const t = meterReadingText(s)
+      return t ? { ...s, meter: { ...m, held: t } } : s
+    }
+    case 'RANGE': return { ...s, meter: { ...m, manualRange: !m.manualRange } }
+    case 'REL': {
+      if (m.rel != null) return { ...s, meter: { ...m, rel: null } }
+      if (m.probeA == null || m.probeB == null || (m.mode !== 'VAC' && m.mode !== 'VDC')) return s
+      const v = voltageBetween(s, m.probeA, m.probeB)
+      return { ...s, meter: { ...m, rel: m.mode === 'VAC' ? v.ac : v.dc } }
+    }
+    case 'BACKLIGHT': return { ...s, meter: { ...m, backlight: !m.backlight } }
+    default: return s
+  }
 }
 
 function placeLead(s: ElecState, p: Point): ElecState {
@@ -492,13 +521,21 @@ function placeLead(s: ElecState, p: Point): ElecState {
   if (m.mode === 'OFF') return log(s, 'warn', 'Meter is off.')
   if (POINT_SCENE[p] !== s.scene) return s
   if (m.probeA == null || m.probeB != null) {
-    return { ...s, meter: { ...m, probeA: p, probeB: null } }
+    return { ...s, meter: { ...m, probeA: p, probeB: null, held: null } }
   }
   const a = m.probeA
   const b = p
-  let next: ElecState = { ...s, meter: { ...m, probeB: b } }
+  let next: ElecState = { ...s, meter: { ...m, probeB: b, held: null } }
+  if (m.mode === 'mA' || m.mode === 'OUT' || m.mode === 'OUT_AUTO' || m.mode === 'LOOP') {
+    return log(next, 'warn', `789 in a current position at ${POINT_LABEL[a]} → ${POINT_LABEL[b]}: there is no 4-20 mA loop here. Use V AC, V DC or Ω.`)
+  }
+  if (m.mode === 'mVDC') {
+    const v = voltageBetween(s, a, b)
+    const txt = Math.abs(v.dc) > 0.3 || v.ac > 0.3 ? 'OL' : `${(v.dc * 1000).toFixed(1)} mV DC`
+    return log({ ...next, tests: next.tests + 1 }, 'measure', `789 mV DC ${POINT_LABEL[a]} → ${POINT_LABEL[b]}: ${txt}`)
+  }
   if (m.mode === 'OHM') {
-    return log(next, 'measure', `87V Ω ${POINT_LABEL[a]} → ${POINT_LABEL[b]}: ${isLive(s, a, b) ? 'OL (live circuit!)' : 'OL'}`)
+    return log(next, 'measure', `789 Ω ${POINT_LABEL[a]} → ${POINT_LABEL[b]}: ${isLive(s, a, b) ? 'OL (live circuit!)' : 'OL'}`)
   }
   const v = voltageBetween(s, a, b)
   const reading = m.mode === 'VAC' ? `${v.ac.toFixed(1)} V AC` : `${v.dc.toFixed(1)} V DC`
@@ -508,9 +545,9 @@ function placeLead(s: ElecState, p: Point): ElecState {
   if (recept(a) && recept(b)) {
     if (m.mode === 'VAC' && v.ac > 100) {
       next = { ...next, proofs: [...next.proofs, next.t] }
-      return log(next, 'measure', `87V proved on known live source: ${POINT_LABEL[a]} → ${POINT_LABEL[b]} ${reading}`)
+      return log(next, 'measure', `789 proved on known live source: ${POINT_LABEL[a]} → ${POINT_LABEL[b]} ${reading}`)
     }
-    return log(next, 'measure', `87V ${m.mode === 'VAC' ? 'V AC' : 'V DC'} ${POINT_LABEL[a]} → ${POINT_LABEL[b]}: ${reading}`)
+    return log(next, 'measure', `789 ${m.mode === 'VAC' ? 'V AC' : 'V DC'} ${POINT_LABEL[a]} → ${POINT_LABEL[b]}: ${reading}`)
   }
 
   const scene = POINT_SCENE[a]
@@ -520,7 +557,7 @@ function placeLead(s: ElecState, p: Point): ElecState {
     const d: DeadTest = { a, b, mode: m.mode, t: next.t, instrument: 'dmm' }
     next = { ...next, deadTests: [...next.deadTests, d] }
   }
-  return log(next, 'measure', `87V ${m.mode === 'VAC' ? 'V AC' : 'V DC'} ${POINT_LABEL[a]} → ${POINT_LABEL[b]}: ${reading}${live ? '  ⚡ LIVE' : ''}`)
+  return log(next, 'measure', `789 ${m.mode === 'VAC' ? 'V AC' : 'V DC'} ${POINT_LABEL[a]} → ${POINT_LABEL[b]}: ${reading}${live ? '  ⚡ LIVE' : ''}`)
 }
 
 function meggerStop(s: ElecState): ElecState {
@@ -594,13 +631,19 @@ function ticCheck(s: ElecState, p: Point): ElecState {
   const isDc = p === 'DC_P' || p === 'DC_N'
   if (POINT_SCENE[p] === 'drive' && !verifiedDead(s)) next = requireSuit(next, 'ppe_test')
   next = log(next, 'measure', `TIC 300 PRO ${t.range} at ${POINT_LABEL[p]}: ${detected ? '⚡ tip flashing, beeper sounding – AC voltage present' : 'no indication'}`)
+  if (isDc) {
+    next = { ...next, tic: { ...next.tic, busChecked: true } }
+    return log(next, 'info', `Bus is DC. A non-contact AC detector shows nothing whether the bus is dead or holding ${busVolts(s).toFixed(0)} V. Use the 789 on V DC.`)
+  }
+  if (!ticAllowed(s)) {
+    if (!next.log.some((l) => l.text.includes('over 1,000 V'))) {
+      next = log(next, 'info', `Site procedure: the TIC 300 PRO is the verification instrument on systems over 1,000 V. This equipment is ${s.scenario.label.voltage} V: verify absence of voltage with the Fluke 789, contact test, live-dead-live.`)
+    }
+    return next
+  }
   if (detected) {
     if (p.startsWith('RECEPT')) next = { ...next, proofs: [...next.proofs, next.t] }
     return next
-  }
-  if (isDc) {
-    next = { ...next, tic: { ...next.tic, busChecked: true } }
-    return log(next, 'info', `Bus is DC. A non-contact AC detector shows nothing whether the bus is dead or holding ${busVolts(s).toFixed(0)} V. Use the 87V on V DC.`)
   }
   if (t.range === 'HIGH') return violate(next, 'tic_high_range', ac >= 30 ? `${POINT_LABEL[p]} is live at ${ac.toFixed(0)} V.` : undefined)
   if (p.startsWith('RECEPT')) return next
@@ -745,11 +788,13 @@ export function reduceElec(s: ElecState, a: Action): ElecState {
       return log(next, 'action', a.open ? `Opened VFD-101 cabinet door. CHARGE lamp ${chargeLampOn(s) ? 'LIT' : 'off'}.` : 'Closed VFD-101 cabinet door.')
     }
     case 'meterMode':
-      return { ...s, meter: { ...s.meter, mode: a.mode, probeA: null, probeB: null } }
+      return { ...s, meter: { ...s.meter, mode: a.mode, probeA: null, probeB: null, held: null, rel: null } }
+    case 'meterKey':
+      return meterKey(s, a.key)
     case 'probe':
       return placeLead(s, a.point)
     case 'meterClear':
-      return { ...s, meter: { ...s.meter, probeA: null, probeB: null } }
+      return { ...s, meter: { ...s.meter, probeA: null, probeB: null, held: null, rel: null } }
     case 'meggerMode': {
       const stopped = s.megger.testing ? meggerStop(s) : s
       return { ...stopped, megger: { ...stopped.megger, mode: a.mode, result: null, inhibit: null } }

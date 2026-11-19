@@ -79,7 +79,9 @@ export interface ElecScenario {
   targetTests: number
 }
 
-export type MeterMode = 'OFF' | 'VAC' | 'VDC' | 'OHM'
+/** The Fluke 789 is the standard meter across modules; its knob positions come from the loop engine's catalog. */
+export type { MeterMode, MeterKey } from '../engine/types'
+import type { MeterMode } from '../engine/types'
 
 /** Megger S1-568 voltage knob (right-hand arc) and test-mode knob. */
 export const MEGGER_VOLTS = [250, 500, 1000, 2500, 5000] as const
@@ -139,7 +141,7 @@ export const CHECKLIST: ChecklistItem[] = [
   { id: 'sources', label: 'Review one-line E-401 and list every source: MCC-3 bucket 3B (480 V), LP-2 ckt 7 (120 V control), DC bus capacitors' },
   { id: 'notify', label: 'Notify operations: P-101 out of service, standby pump P-102 carrying the station' },
   { id: 'jsa', label: 'JSA reviewed; arc flash boundary marked; second person at the boundary' },
-  { id: 'meter', label: 'TIC 300 PRO self-test passes; Fluke 87V (CAT III 1000 V) and Megger S1-568 in cal, leads inspected' },
+  { id: 'meter', label: 'Fluke 789 (CAT III 1000 V) and Megger S1-568 in cal, leads inspected. TIC 300 PRO only for systems over 1,000 V' },
 ]
 
 export type LogKind = 'info' | 'measure' | 'action' | 'warn' | 'inspect' | 'violation'
@@ -182,7 +184,7 @@ export interface ElecState {
   drive: { faulted: boolean; running: boolean; damaged: boolean; display: string }
   leadsLifted: boolean
   jbox: { coverOff: boolean; feedersUnbolted: boolean; lugsCleared: boolean; wyeOpen: boolean; inspected: boolean }
-  meter: { mode: MeterMode; probeA: Point | null; probeB: Point | null }
+  meter: { mode: MeterMode; probeA: Point | null; probeB: Point | null; held: string | null; rel: number | null; manualRange: boolean; backlight: boolean }
   megger: MeggerState
   tic: TicState
   proofs: number[]

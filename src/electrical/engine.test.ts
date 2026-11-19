@@ -140,7 +140,7 @@ describe('LOTO and verification', () => {
     expect(s.leadsLifted).toBe(true)
   })
 
-  it('TIC 300 PRO path: self-test, prove, LOW-range checks on the AC points, 87V on the DC bus, re-prove', () => {
+  it('at 480 V the TIC 300 PRO does not count as verification; the 789 does', () => {
     const s = run(createElecSession(byId('term-fault')),
       ...prework(), ...FULL_PPE,
       { type: 'breaker', closed: false }, { type: 'lp2', closed: false },
@@ -153,13 +153,15 @@ describe('LOTO and verification', () => {
       ...vdc('DC_P', 'DC_N'),
       { type: 'goto', scene: 'mcc' }, { type: 'ticCheck', point: 'RECEPT_H' },
     )
-    expect(s.proofs).toHaveLength(2)
-    expect(verifiedDead(s)).toBe(true)
-    expect(eswc(s)).toBe(true)
+    expect(s.proofs).toHaveLength(0)
+    expect(verifiedDead(s)).toBe(false)
+    expect(s.log.some((l) => l.text.includes('over 1,000 V'))).toBe(true)
     expect(s.violations).toEqual([])
-    const score = scoreElec(run(s, { type: 'goto', scene: 'drive' }, { type: 'liftLeads', lifted: true }, { type: 'finish' }))
-    expect(score.penalties).toEqual([])
-    expect(score.lines[1].points).toBe(35)
+    const done = run(s, ...vac('RECEPT_H', 'RECEPT_N'), { type: 'goto', scene: 'drive' },
+      ...vac('L1', 'GND'), ...vac('L2', 'GND'), ...vac('L3', 'GND'), ...vac('CTRL_H', 'CTRL_N'),
+      { type: 'goto', scene: 'mcc' }, ...vac('RECEPT_H', 'RECEPT_N'))
+    expect(verifiedDead(done)).toBe(true)
+    expect(eswc(done)).toBe(true)
   })
 
   it('TIC detects live AC on LOW, misses it on HIGH, and sees nothing on the DC bus', () => {
@@ -168,7 +170,6 @@ describe('LOTO and verification', () => {
     expect(live.deadTests).toHaveLength(0)
     const high = run(live, { type: 'ticRange', range: 'HIGH' }, { type: 'ticCheck', point: 'L2' })
     expect(high.tic.last?.detected).toBe(false)
-    expect(high.violations.map((v) => v.id)).toContain('tic_high_range')
     expect(high.deadTests).toHaveLength(0)
     const bus = run(live, { type: 'ticCheck', point: 'DC_P' })
     expect(bus.tic.last?.detected).toBe(false)
@@ -178,10 +179,10 @@ describe('LOTO and verification', () => {
     expect(score.penalties.some((p) => p.label.includes('cannot see DC'))).toBe(true)
   })
 
-  it('TIC used without a self-test is noted once', () => {
+  it('TIC checks on 480 V equipment record nothing and remind the technician of the rule once', () => {
     const s = run(createElecSession(byId('term-fault')), ...FULL_PPE, { type: 'breaker', closed: false }, { type: 'ticPower', on: true }, { type: 'goto', scene: 'drive' }, { type: 'door', open: true }, { type: 'ticCheck', point: 'L1' }, { type: 'ticCheck', point: 'L2' })
-    expect(s.violations.filter((v) => v.id === 'tic_no_selftest')).toHaveLength(1)
-    expect(s.deadTests).toHaveLength(2)
+    expect(s.deadTests).toHaveLength(0)
+    expect(s.log.filter((l) => l.text.includes('over 1,000 V'))).toHaveLength(1)
   })
 
   it('touching conductors before verification is a violation', () => {

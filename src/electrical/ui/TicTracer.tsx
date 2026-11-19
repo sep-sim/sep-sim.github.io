@@ -37,9 +37,9 @@ export function TicTracer({ state, dispatch }: Props) {
         {t.on && t.last != null && (t.last.detected ? `⚡ BEEP · ${POINT_LABEL[t.last.point]}` : `no indication · ${POINT_LABEL[t.last.point]}`)}
       </div>
       <p className="muted small">
-        Non-contact AC detector. Press TEST for the self-test, prove it on the live receptacle, then hold the tip at each conductor:
-        tap the point in the scene. LOW is the range for 480 V; HIGH does not trip below 1500 V. It cannot see DC, so the drive's
-        DC bus still needs the 87V on V DC. Re-prove on the receptacle when you are done.
+        Non-contact AC detector for systems over 1,000 V. Press TEST for the self-test, prove it on a known live source, then hold the
+        tip at each conductor: tap the point in the scene. HIGH is the range above 1,500 V; LOW below. It cannot see DC. On 480 V
+        equipment like this job it is not the verification instrument: use the Fluke 789 by contact, live-dead-live.
       </p>
     </div>
   )

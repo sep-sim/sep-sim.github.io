@@ -6,7 +6,7 @@ import { REPAIRS } from '../types'
 import { MccScene } from './MccScene'
 import { DriveScene } from './DriveScene'
 import { MotorScene } from './MotorScene'
-import { Fluke87V } from './Fluke87V'
+import { Fluke789Elec } from './Fluke789Elec'
 import { MeggerS1 } from './MeggerS1'
 import { TicTracer } from './TicTracer'
 import { ArcLabelModal } from './ArcLabel'
@@ -63,7 +63,7 @@ export function ElecSim({ scenario, onExit }: { scenario: ElecScenario; onExit: 
   const scenes: { id: Scene; label: string }[] = [{ id: 'mcc', label: 'MCC room' }, { id: 'drive', label: 'VFD-101 cabinet' }, { id: 'motor', label: 'P-101 motor' }]
   const tabs: { id: Tab; label: string }[] = [
     { id: 'prework', label: 'Pre-work' }, { id: 'ppe', label: 'PPE' }, { id: 'loto', label: 'LOTO' },
-    { id: 'tic', label: 'TIC 300' }, { id: 'dmm', label: 'Fluke 87V' }, { id: 'megger', label: 'Megger' }, { id: 'keypad', label: 'Keypad' }, { id: 'closeout', label: 'Close-out' },
+    { id: 'tic', label: 'TIC 300' }, { id: 'dmm', label: 'Fluke 789' }, { id: 'megger', label: 'Megger' }, { id: 'keypad', label: 'Keypad' }, { id: 'closeout', label: 'Close-out' },
   ]
 
   /** Scene taps go to whichever instrument is in hand: TIC tip, DMM leads (red then black), or Megger (− then +). */
@@ -120,7 +120,7 @@ export function ElecSim({ scenario, onExit }: { scenario: ElecScenario; onExit: 
               {tab === 'ppe' && <PpeLocker state={state} dispatch={dispatch} />}
               {tab === 'loto' && <Loto state={state} dispatch={dispatch} />}
               {tab === 'tic' && <TicTracer state={state} dispatch={dispatch} />}
-              {tab === 'dmm' && <Fluke87V state={state} dispatch={dispatch} />}
+              {tab === 'dmm' && <Fluke789Elec state={state} dispatch={dispatch} />}
               {tab === 'megger' && <MeggerS1 state={state} dispatch={dispatch} />}
               {tab === 'keypad' && <Keypad state={state} dispatch={dispatch} />}
               {tab === 'closeout' && <Closeout state={state} dispatch={dispatch} />}
