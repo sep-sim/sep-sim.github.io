@@ -7,6 +7,7 @@ interface Props {
   onProbe: (node: NodeId) => void
   onInspect: (where: InspectWhere) => void
   onValve: (open: boolean) => void
+  onFuse: (pulled: boolean) => void
 }
 
 const NODE_POS: Record<NodeId, [number, number]> = {
@@ -26,7 +27,7 @@ function path(points: [number, number][]): string {
   return points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0]} ${p[1]}`).join(' ')
 }
 
-export function SiteDiagram({ state, sol, onProbe, onInspect, onValve }: Props) {
+export function SiteDiagram({ state, sol, onProbe, onInspect, onValve, onFuse }: Props) {
   const live = sol.current >= 3.5
   const wire = live ? 'var(--wire-live)' : 'var(--wire-dead)'
   const m = state.meter
@@ -61,9 +62,11 @@ export function SiteDiagram({ state, sol, onProbe, onInspect, onValve }: Props) 
       {box(190, 75, 120, 50, 'F1  1 A', null)}
       {box(180, 200, 120, 120, 'TB-1', null)}
       {box(40, 360, 200, 110, 'AI-1  CH3', null, '250 Ω input')}
-      {/* fuse symbol */}
-      <rect x={225} y={95} width={40} height={10} className="fuse" />
-      <text x={245} y={118} textAnchor="middle" className="tiny">{state.fusePulled ? 'PULLED' : 'in'}</text>
+      {/* fuse symbol: click to pull / re-seat */}
+      <g className={`fuse clickable ${state.fusePulled ? 'pulled' : ''}`} onClick={() => onFuse(!state.fusePulled)}>
+        <rect x={225} y={95} width={40} height={10} />
+        <text x={245} y={118} textAnchor="middle" className="tiny">{state.fusePulled ? 'PULLED · click to seat' : 'click to pull'}</text>
+      </g>
 
       {/* cabinet wiring */}
       <path d={path([[60, 150], [60, 185], [170, 185], [170, 100], [225, 100]])} className="wire" stroke={sol.supplyVolts > 0 ? 'var(--wire-live)' : 'var(--wire-dead)'} />

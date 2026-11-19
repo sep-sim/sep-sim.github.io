@@ -56,6 +56,7 @@ export function scoreSession(s: SessionState): Score {
   })
 
   if (s.ohmsOnLive > 0) penalties.push({ label: 'Resistance measured on a live loop', points: -Math.min(15, 5 * s.ohmsOnLive), max: 0, note: `${s.ohmsOnLive}×` })
+  if (s.sourceIntoLive > 0) penalties.push({ label: 'Sourced current into a powered loop', points: -5, max: 0, note: `${s.sourceIntoLive}×` })
   if (s.pumpWithIsolationOpen > 0) penalties.push({ label: 'Test pressure applied with isolation open', points: -10, max: 0, note: `${s.pumpWithIsolationOpen}×` })
   if (!s.checklist.notify && s.fieldWorkStarted) penalties.push({ label: 'Worked on a live SCADA point without notifying the controller', points: -10, max: 0, note: '' })
 

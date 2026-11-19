@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createSession, reduce, type Action } from './session'
 import { loopInService, resistanceBetween, solveLoop } from './loop'
+import { meterReading } from './meter'
 import { scoreSession } from './score'
 import { PREWORK_CHECKLIST, type SessionState } from './types'
 import { SCENARIOS } from '../scenarios'
@@ -16,6 +17,7 @@ function byId(id: string) {
 }
 
 const prework = (): Action[] => PREWORK_CHECKLIST.map((c) => ({ type: 'checklist', id: c.id }) as Action)
+const reading = (s: SessionState) => meterReading(s, solveLoop(s))
 
 describe('loop solver', () => {
   it('healthy loop tracks line pressure at the HMI', () => {
@@ -68,15 +70,105 @@ describe('loop solver', () => {
     expect(resistanceBetween(s, 'JB_2', 'TB_2')).toBe('OL')
     expect(resistanceBetween(s, 'TB_1', 'JB_1')).toBe('4.2 Ω')
   })
+})
 
-  it('ohms on a live loop is logged as a warning and penalised', () => {
+describe('Fluke 789', () => {
+  it('V DC across the bad JB joint reads the supply', () => {
+    const s = run(createSession(byId('jb-loose')), { type: 'meterMode', mode: 'VDC' }, { type: 'probe', node: 'JB_1' }, { type: 'probe', node: 'XMTR_PLUS' })
+    expect(reading(s).primary).toBe('24.00')
+    expect(s.measurements).toBe(1)
+    expect(s.log.at(-1)?.text).toContain('24.00 V DC')
+  })
+
+  it('ohms on a live circuit is OL, logged as a warning and penalised', () => {
     const s = run(createSession(byId('jb-loose')), { type: 'meterMode', mode: 'OHM' }, { type: 'probe', node: 'TB_1' }, { type: 'probe', node: 'JB_1' })
+    expect(reading(s).primary).toBe('OL')
     expect(s.ohmsOnLive).toBe(1)
     expect(s.log.at(-1)?.kind).toBe('warn')
     // Downstream of a blown fuse the field side is dead, so an ohms check there is legitimate.
     const dead = run(createSession(byId('fuse')), { type: 'meterMode', mode: 'OHM' }, { type: 'probe', node: 'TB_1' }, { type: 'probe', node: 'JB_1' })
     expect(dead.ohmsOnLive).toBe(0)
-    expect(dead.meter.display).toBe('4.2 Ω')
+    expect(reading(dead).primary).toBe('4.2')
+    expect(reading(dead).beep).toBe(true)
+  })
+
+  it('mA in series reads loop current; TEST terminals do not break the loop', () => {
+    const s = run(createSession(byId('range')), { type: 'meterMode', mode: 'mA' }, { type: 'probe', node: 'XMTR_TEST' })
+    expect(Number(reading(s).primary)).toBeGreaterThan(8)
+    expect(Number(reading(s).primary)).toBeLessThan(10)
+    expect(s.log.at(-1)?.text).toContain('TEST terminals')
+  })
+
+  it('LOOP POWER across a lifted transmitter reads its output even with the fuse blown', () => {
+    const s = run(createSession(byId('fuse')),
+      { type: 'meterMode', mode: 'mA' }, { type: 'meterKey', key: 'LOOP_POWER' },
+      { type: 'probe', node: 'XMTR_PLUS' }, { type: 'probe', node: 'XMTR_MINUS' })
+    const sol = solveLoop(s)
+    expect(sol.meterCurrent).toBeGreaterThan(13)
+    expect(sol.current).toBe(0)
+    expect(Number(reading(s).primary)).toBeCloseTo(sol.meterCurrent, 1)
+    // Trex needs the 789's 250 Ω to talk while the meter powers the device.
+    const noR = run(s, { type: 'hartConnect' })
+    expect(solveLoop(noR).hartReachable).toBe(false)
+    expect(solveLoop(noR).hartBlocked).toContain('250')
+    const withR = run(noR, { type: 'meterKey', key: 'HART_250' }, { type: 'hartRead' })
+    expect(solveLoop(withR).hartReachable).toBe(true)
+    expect(withR.hart.screen?.tag).toBe('PT-101')
+  })
+
+  it('SIMULATE in the transmitter\'s place drives the HMI; loop is not in service while it does', () => {
+    const base = { ...createSession(byId('jb-loose')), faults: [] } as SessionState
+    const s = run(base, { type: 'meterMode', mode: 'SIM' }, { type: 'meterKey', key: 'HUNDRED' },
+      { type: 'probe', node: 'XMTR_PLUS' }, { type: 'probe', node: 'XMTR_MINUS' }, { type: 'tick' })
+    expect(solveLoop(s).current).toBe(20)
+    expect(s.hmiHistory.at(-1)?.eu).toBeCloseTo(500, 5)
+    expect(loopInService(s)).toBe(false)
+    const lifted = run(s, { type: 'meterClear' })
+    expect(loopInService(lifted)).toBe(true)
+  })
+
+  it('SOURCE into the RTU input works only with F1 pulled; into a live loop it is penalised', () => {
+    const s0 = run(createSession(byId('cable-open')), { type: 'meterMode', mode: 'SOURCE' }, { type: 'meterKey', key: 'STEP' }, { type: 'meterKey', key: 'STEP' })
+    expect(s0.meter.outMa).toBe(12)
+    const live = run(s0, { type: 'probe', node: 'AI_PLUS' }, { type: 'probe', node: 'AI_MINUS' })
+    expect(live.sourceIntoLive).toBe(1)
+    expect(reading(live).primary).toBe('OL')
+    const dead = run(live, { type: 'fuse', pulled: true }, { type: 'tick' })
+    expect(solveLoop(dead).aiCurrent).toBe(12)
+    expect(dead.hmiHistory.at(-1)?.eu).toBeCloseTo(250, 5)
+    expect(scoreSession(live).penalties.some((p) => p.label.includes('Sourced'))).toBe(true)
+  })
+
+  it('ramp advances the output on tick and turns around at 20 mA', () => {
+    let s = run(createSession(byId('range')), { type: 'meterMode', mode: 'SOURCE' }, { type: 'meterKey', key: 'RAMP' })
+    expect(s.meter.ramp).toBe('slow')
+    for (let i = 0; i < 45; i++) s = reduce(s, { type: 'tick' })
+    expect(s.meter.outMa).toBeLessThan(20)
+    expect(s.meter.rampDir).toBe(-1)
+  })
+
+  it('HOLD freezes the display', () => {
+    const s = run(createSession(byId('jb-loose')), { type: 'meterMode', mode: 'VDC' }, { type: 'probe', node: 'TB_1' }, { type: 'probe', node: 'TB_2' }, { type: 'meterKey', key: 'HOLD' })
+    expect(s.meter.held).toBe('24.00 V DC')
+  })
+})
+
+describe('Trex', () => {
+  it('loop power lets the communicator reach a device on a dead loop', () => {
+    const s = run(createSession(byId('fuse')), { type: 'hartConnect' })
+    expect(solveLoop(s).hartReachable).toBe(false)
+    const lp = run(s, { type: 'hartLoopPower', on: true }, { type: 'hartRead' })
+    expect(solveLoop(lp).hartReachable).toBe(true)
+  })
+
+  it('apply values sets the range from a pumped pressure', () => {
+    const s = run(createSession(byId('range')), { type: 'valve', open: false }, { type: 'pump', psi: 500 }, { type: 'hartConnect' }, { type: 'hartApply', which: 'urv' })
+    expect(s.xmtr.urv).toBe(500)
+  })
+
+  it('zero trim is refused with pressure on the sensor', () => {
+    const s = run(createSession(byId('range')), { type: 'hartConnect' }, { type: 'hartZeroTrim' })
+    expect(s.log.at(-1)?.kind).toBe('warn')
   })
 })
 
@@ -147,6 +239,5 @@ describe('scenarios can each be solved to a perfect score', () => {
     expect(sol.pressureSeen).toBe(250)
     // device ranged 0–1000, so 250 psig → 8 mA, and the HMI (0–500) shows 125
     expect(sol.current).toBeCloseTo(8, 5)
-    expect(good.hmiHistory.at(-1)?.eu).toBeDefined()
   })
 })

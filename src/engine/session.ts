@@ -1,29 +1,36 @@
 // Session reducer: every technician action goes through here, gets logged, and updates the world.
 
 import type {
-  DiagnosisId, InspectWhere, LogEntry, LogKind, MeterMode, NodeId, RepairId, Scenario, SessionState,
+  DiagnosisId, InspectWhere, LogEntry, LogKind, MeterKey, MeterMode, MeterState, NodeId, RepairId, Scenario, SessionState,
 } from './types'
 import { NODE_LABEL, PREWORK_CHECKLIST, REPAIRS, SERIES_CAPABLE } from './types'
-import { hasFault, hmiReading, resistanceBetween, solveLoop } from './loop'
+import { hasFault, hmiReading, solveLoop } from './loop'
+import { meterReading } from './meter'
 
 export type Action =
   | { type: 'tick' }
   | { type: 'checklist'; id: string }
   | { type: 'meterMode'; mode: MeterMode }
+  | { type: 'meterKey'; key: MeterKey }
   | { type: 'probe'; node: NodeId }
   | { type: 'meterClear' }
   | { type: 'inspect'; where: InspectWhere }
   | { type: 'fuse'; pulled: boolean }
   | { type: 'hartConnect' }
   | { type: 'hartDisconnect' }
+  | { type: 'hartLoopPower'; on: boolean }
   | { type: 'hartRead' }
   | { type: 'hartLoopTest'; ma: number | null }
   | { type: 'hartSetRange'; lrv: number; urv: number }
+  | { type: 'hartApply'; which: 'lrv' | 'urv' }
+  | { type: 'hartZeroTrim' }
   | { type: 'valve'; open: boolean }
   | { type: 'pump'; psi: number | null }
   | { type: 'repair'; id: RepairId }
   | { type: 'diagnose'; id: DiagnosisId }
   | { type: 'finish' }
+
+const STEP_POINTS = [4, 8, 12, 16, 20]
 
 export function createSession(scenario: Scenario): SessionState {
   const base: SessionState = {
@@ -39,10 +46,11 @@ export function createSession(scenario: Scenario): SessionState {
     trappedPressure: scenario.initial.trappedPressure,
     pumpPressure: null,
     xmtr: { lrv: scenario.initial.xmtrLrv, urv: scenario.initial.xmtrUrv },
-    hart: { connected: false, loopTest: null, screen: null },
-    meter: { mode: 'V', probeA: null, probeB: null, display: '----' },
+    hart: { connected: false, loopPower: false, loopTest: null, screen: null },
+    meter: { mode: 'OFF', probeA: null, probeB: null, held: null, loopPower: false, hart250: false, outMa: 4, ramp: 'off', rampDir: 1 },
     measurements: 0,
     ohmsOnLive: 0,
+    sourceIntoLive: 0,
     pumpWithIsolationOpen: 0,
     inspections: {},
     diagnosis: null,
@@ -75,53 +83,116 @@ function fieldAction(s: SessionState): SessionState {
   return { ...s, fieldWorkStarted: true, checklistDoneBeforeField: done }
 }
 
-function noise(scale: number): number {
-  return (Math.random() - 0.5) * 2 * scale
+function clampMa(v: number): number {
+  return Math.round(Math.max(0, Math.min(24, v)) * 100) / 100
 }
 
-function fmtV(v: number): string {
-  return `${(v + noise(0.03)).toFixed(2)} V DC`
+// ---- meter -------------------------------------------------------------------------------------
+
+/** Log what the 789 shows for the current placement, and apply any penalty the reading carries. */
+function recordReading(s: SessionState, countsAsMeasurement: boolean): SessionState {
+  const r = meterReading(s, solveLoop(s))
+  if (!r.logText) return s
+  let next: SessionState = countsAsMeasurement ? { ...s, measurements: s.measurements + 1 } : s
+  if (r.warn) {
+    if (s.meter.mode === 'OHM') next = { ...next, ohmsOnLive: next.ohmsOnLive + 1 }
+    if (s.meter.mode === 'SOURCE') next = { ...next, sourceIntoLive: next.sourceIntoLive + 1 }
+    next = log(next, 'measure', `789: ${r.logText}`)
+    return log(next, 'warn', r.warn)
+  }
+  return log(next, 'measure', `789: ${r.logText}`)
 }
 
-function fmtMa(ma: number): string {
-  return `${(ma + (ma > 0 ? noise(0.02) : 0)).toFixed(2)} mA`
+function setMeter(s: SessionState, patch: Partial<MeterState>): SessionState {
+  return { ...s, meter: { ...s.meter, ...patch } }
 }
 
-function measureVolts(s: SessionState, a: NodeId, b: NodeId): SessionState {
-  const sol = solveLoop(s)
-  const v = sol.node[a] - sol.node[b]
-  const display = sol.supplyVolts === 0 && !s.fusePulled ? fmtV(0) : fmtV(v)
-  const next: SessionState = { ...s, measurements: s.measurements + 1, meter: { ...s.meter, display } }
-  return log(next, 'measure', `V DC  ${NODE_LABEL[a]} → ${NODE_LABEL[b]}: ${display}`)
-}
-
-function measureOhms(s: SessionState, a: NodeId, b: NodeId): SessionState {
-  const sol = solveLoop(s)
-  // A meter sees a live source if either probed point sits at loop potential.
-  const live = sol.supplyVolts > 0 && (sol.node[a] > 0.5 || sol.node[b] > 0.5)
-  if (live) {
-    const display = 'OL  ⚠'
-    let next: SessionState = {
-      ...s, measurements: s.measurements + 1, ohmsOnLive: s.ohmsOnLive + 1, meter: { ...s.meter, display },
+function meterKey(s: SessionState, key: MeterKey): SessionState {
+  const m = s.meter
+  if (m.mode === 'OFF') return s
+  const outputMode = m.mode === 'SOURCE' || m.mode === 'SIM'
+  switch (key) {
+    case 'RANGE':
+      return s
+    case 'HOLD': {
+      if (m.held != null) return setMeter(s, { held: null })
+      const r = meterReading(s, solveLoop(s))
+      return setMeter(s, { held: `${r.primary} ${r.unit}`.trim() })
     }
-    next = log(next, 'warn', `Resistance measured on a live circuit (${NODE_LABEL[a]} → ${NODE_LABEL[b]}). Reading is meaningless and risks the meter. De-energize first.`)
-    return next
+    case 'LOOP_POWER': {
+      if (m.mode !== 'mA') return s
+      const on = !m.loopPower
+      const next = setMeter(fieldAction(s), { loopPower: on })
+      const logged = log(next, 'action', on ? '789: LOOP POWER on – meter supplies 24 V between its mA leads.' : '789: LOOP POWER off.')
+      return on ? recordReading(logged, true) : logged
+    }
+    case 'HART_250': {
+      const on = !m.hart250
+      return log(setMeter(s, { hart250: on }), 'action', on ? '789: 250 Ω HART resistor in.' : '789: 250 Ω HART resistor out.')
+    }
+    case 'ZERO': return outputMode ? setOut(s, 4) : s
+    case 'HUNDRED': return outputMode ? setOut(s, 20) : s
+    case 'SPAN_CHECK': return outputMode ? setOut(s, m.outMa >= 12 ? 4 : 20) : s
+    case 'STEP': {
+      if (!outputMode) return s
+      const next = STEP_POINTS.find((p) => p > m.outMa + 0.001) ?? 4
+      return setOut(s, next)
+    }
+    case 'RAMP': {
+      if (!outputMode) return s
+      const order = ['off', 'slow', 'fast', 'step'] as const
+      const ramp = order[(order.indexOf(m.ramp) + 1) % order.length]
+      return log(setMeter(s, { ramp, rampDir: 1 }), 'action', ramp === 'off' ? '789: ramp off.' : `789: ${ramp} ramp 4–20 mA.`)
+    }
+    case 'COARSE_UP': return outputMode ? setOut(s, m.outMa + 1) : s
+    case 'COARSE_DN': return outputMode ? setOut(s, m.outMa - 1) : s
+    case 'FINE_UP': return outputMode ? setOut(s, m.outMa + 0.01) : s
+    case 'FINE_DN': return outputMode ? setOut(s, m.outMa - 0.01) : s
   }
-  const display = resistanceBetween(s, a, b)
-  const next: SessionState = { ...s, measurements: s.measurements + 1, meter: { ...s.meter, display } }
-  return log(next, 'measure', `Ω  ${NODE_LABEL[a]} → ${NODE_LABEL[b]}: ${display}`)
 }
 
-function measureMa(s: SessionState, at: NodeId): SessionState {
-  if (!SERIES_CAPABLE.includes(at)) {
-    return log(s, 'warn', `Cannot insert the meter in series at ${NODE_LABEL[at]} without lifting cabinet wiring. Use a terminal block, JB, or the transmitter TEST terminals.`)
-  }
-  const sol = solveLoop(s)
-  const display = fmtMa(sol.current)
-  const next: SessionState = { ...s, measurements: s.measurements + 1, meter: { ...s.meter, display } }
-  const how = at === 'XMTR_TEST' ? 'across PT-101 TEST terminals (loop not broken)' : `in series at ${NODE_LABEL[at]} (lifted wire)`
-  return log(next, 'measure', `mA DC ${how}: ${display}`)
+function setOut(s: SessionState, ma: number): SessionState {
+  const next = setMeter(s, { outMa: clampMa(ma), ramp: 'off' })
+  const placed = next.meter.probeA != null && next.meter.probeB != null
+  return placed ? recordReading(next, false) : next
 }
+
+function rampTick(s: SessionState): SessionState {
+  const m = s.meter
+  if (m.ramp === 'off' || (m.mode !== 'SOURCE' && m.mode !== 'SIM')) return s
+  let out = m.outMa
+  let dir = m.rampDir
+  if (m.ramp === 'slow') out += dir * 0.4
+  else if (m.ramp === 'fast') out += dir * (16 / 15)
+  else if (s.t % 5 === 0) out += dir * 4
+  if (out >= 20) { out = 20; dir = -1 }
+  if (out <= 4) { out = 4; dir = 1 }
+  return setMeter(s, { outMa: clampMa(out), rampDir: dir })
+}
+
+function probe(s: SessionState, node: NodeId): SessionState {
+  const m = s.meter
+  if (m.mode === 'OFF') return log(s, 'warn', '789 is switched off.')
+  const s1 = setMeter(fieldAction(s), { held: null })
+
+  // mA measure without loop power: single-point series insertion
+  if (m.mode === 'mA' && !m.loopPower) {
+    if (!SERIES_CAPABLE.includes(node)) {
+      return log(s1, 'warn', `Cannot insert the meter in series at ${NODE_LABEL[node]} without lifting cabinet wiring. Use a terminal block, JB, or the transmitter TEST terminals.`)
+    }
+    return recordReading(setMeter(s1, { probeA: node, probeB: null }), true)
+  }
+
+  // everything else: two leads
+  if (m.probeA == null || m.probeB != null) {
+    return setMeter(s1, { probeA: node, probeB: null })
+  }
+  const placed = setMeter(s1, { probeB: node })
+  const counts = m.mode !== 'VAC'
+  return recordReading(placed, counts)
+}
+
+// ---- field --------------------------------------------------------------------------------------
 
 function inspect(s: SessionState, where: InspectWhere): SessionState {
   const sol = solveLoop(s)
@@ -142,9 +213,10 @@ function inspect(s: SessionState, where: InspectWhere): SessionState {
       break
     }
     case 'xmtr': {
-      if (sol.current < 3) lines.push('Local LCD is dark (no loop power).')
-      else if (hasFault(s, 'xmtr_fail_high') || hasFault(s, 'xmtr_fail_low')) lines.push(`Local LCD: "SENSOR FAIL"  ${sol.current.toFixed(1)} mA`)
-      else lines.push(`Local LCD: PV ${sol.pressureSeen.toFixed(1)} ${s.scenario.loop.unit}  ${sol.current.toFixed(2)} mA`)
+      const powered = sol.current >= 3 || sol.meterCurrent >= 3
+      if (!powered) lines.push('Local LCD is dark (no loop power).')
+      else if (hasFault(s, 'xmtr_fail_high') || hasFault(s, 'xmtr_fail_low')) lines.push(`Local LCD: "SENSOR FAIL"  ${sol.xmtrDemand.toFixed(1)} mA`)
+      else lines.push(`Local LCD: PV ${sol.pressureSeen.toFixed(1)} ${s.scenario.loop.unit}  ${sol.xmtrDemand.toFixed(2)} mA`)
       lines.push('Housing dry, conduit seal poured, no visible damage.')
       break
     }
@@ -160,28 +232,32 @@ function inspect(s: SessionState, where: InspectWhere): SessionState {
   return log(next, 'inspect', `Inspect ${where.toUpperCase()}: ${text}`)
 }
 
+// ---- HART / Trex ---------------------------------------------------------------------------------
+
 function hartRead(s: SessionState): SessionState {
   const sol = solveLoop(s)
-  if (!s.hart.connected) return log(s, 'warn', 'HART: communicator not connected to the loop.')
+  if (!s.hart.connected) return log(s, 'warn', 'Trex: not connected to the loop.')
   if (!sol.hartReachable) {
-    return log({ ...s, hart: { ...s.hart, screen: null }, measurements: s.measurements + 1 }, 'measure', 'HART: "No device found." Loop current below 3.5 mA or polarity wrong.')
+    return log({ ...s, hart: { ...s.hart, screen: null }, measurements: s.measurements + 1 }, 'measure', `Trex: "No device found." (${sol.hartBlocked})`)
   }
   const status: string[] = []
   if (hasFault(s, 'xmtr_fail_high') || hasFault(s, 'xmtr_fail_low')) status.push('SENSOR FAILURE', 'PV OUT OF LIMITS')
   if (s.hart.loopTest != null) status.push('LOOP CURRENT FIXED')
   if (sol.pressureSeen > s.xmtr.urv || sol.pressureSeen < s.xmtr.lrv) status.push('PV OUT OF RANGE')
   if (status.length === 0) status.push('DEVICE OK')
-  const screen = {
-    tag: s.scenario.loop.tag,
-    pv: sol.pressureSeen,
-    ao: sol.xmtrDemand,
-    lrv: s.xmtr.lrv,
-    urv: s.xmtr.urv,
-    status,
-  }
+  const screen = { tag: s.scenario.loop.tag, pv: sol.pressureSeen, ao: sol.xmtrDemand, lrv: s.xmtr.lrv, urv: s.xmtr.urv, status }
   const next: SessionState = { ...s, hart: { ...s.hart, screen }, measurements: s.measurements + 1 }
-  return log(next, 'measure', `HART read: PV ${screen.pv.toFixed(1)} ${s.scenario.loop.unit}, AO ${screen.ao.toFixed(2)} mA, LRV ${screen.lrv}, URV ${screen.urv}, status ${status.join('/')}`)
+  return log(next, 'measure', `Trex: found ${screen.tag}. PV ${screen.pv.toFixed(1)} ${s.scenario.loop.unit}, AO ${screen.ao.toFixed(2)} mA, LRV ${screen.lrv}, URV ${screen.urv}, status ${status.join('/')}`)
 }
+
+function requireDevice(s: SessionState): string | null {
+  const sol = solveLoop(s)
+  if (!s.hart.connected) return 'Trex: not connected.'
+  if (!sol.hartReachable) return `Trex: no device to command (${sol.hartBlocked}).`
+  return null
+}
+
+// ---- repairs --------------------------------------------------------------------------------------
 
 function applyRepair(s: SessionState, id: RepairId): SessionState {
   const label = REPAIRS.find((r) => r.id === id)?.label ?? id
@@ -203,33 +279,26 @@ function applyRepair(s: SessionState, id: RepairId): SessionState {
   return log(next, 'action', `Repair: ${label}`)
 }
 
+// ---- reducer ----------------------------------------------------------------------------------------
+
 export function reduce(s: SessionState, a: Action): SessionState {
   if (s.finished && a.type !== 'tick') return s
   switch (a.type) {
-    case 'tick': {
-      return sampleHmi({ ...s, t: s.t + 1 })
-    }
+    case 'tick':
+      return sampleHmi(rampTick({ ...s, t: s.t + 1 }))
     case 'checklist': {
       const next = { ...s, checklist: { ...s.checklist, [a.id]: !s.checklist[a.id] } }
       const item = PREWORK_CHECKLIST.find((c) => c.id === a.id)
       return next.checklist[a.id] ? log(next, 'info', `Pre-work: ${item?.label}`) : next
     }
     case 'meterMode':
-      return { ...s, meter: { mode: a.mode, probeA: null, probeB: null, display: '----' } }
+      return setMeter(s, { mode: a.mode, probeA: null, probeB: null, held: null, ramp: 'off', loopPower: a.mode === 'mA' ? s.meter.loopPower : false })
+    case 'meterKey':
+      return meterKey(s, a.key)
     case 'meterClear':
-      return { ...s, meter: { ...s.meter, probeA: null, probeB: null, display: '----' } }
-    case 'probe': {
-      const s1 = fieldAction(s)
-      const m = s1.meter
-      if (m.mode === 'mA') {
-        return measureMa({ ...s1, meter: { ...m, probeA: a.node, probeB: null } }, a.node)
-      }
-      if (m.probeA == null || m.probeB != null) {
-        return { ...s1, meter: { ...m, probeA: a.node, probeB: null, display: '----' } }
-      }
-      const withB: SessionState = { ...s1, meter: { ...m, probeB: a.node } }
-      return m.mode === 'V' ? measureVolts(withB, m.probeA, a.node) : measureOhms(withB, m.probeA, a.node)
-    }
+      return setMeter(s, { probeA: null, probeB: null, held: null })
+    case 'probe':
+      return probe(s, a.node)
     case 'inspect':
       return inspect(fieldAction(s), a.where)
     case 'fuse': {
@@ -237,21 +306,42 @@ export function reduce(s: SessionState, a: Action): SessionState {
       return log(next, 'action', a.pulled ? 'Pulled fuse F1 – loop de-energized.' : 'Re-seated fuse F1 – loop energized.')
     }
     case 'hartConnect':
-      return log({ ...fieldAction(s), hart: { ...s.hart, connected: true } }, 'action', 'HART communicator clipped across the loop at PT-101.')
+      return hartRead(log({ ...fieldAction(s), hart: { ...s.hart, connected: true } }, 'action', 'Trex clipped across the loop at PT-101.'))
     case 'hartDisconnect':
-      return log({ ...s, hart: { connected: false, loopTest: null, screen: null } }, 'action', 'HART communicator removed. Loop test cleared.')
+      return log({ ...s, hart: { connected: false, loopPower: false, loopTest: null, screen: null } }, 'action', 'Trex removed. Loop test cleared.')
+    case 'hartLoopPower': {
+      const next = { ...fieldAction(s), hart: { ...s.hart, loopPower: a.on } }
+      return log(next, 'action', a.on ? 'Trex: loop power on – communicator supplies the device.' : 'Trex: loop power off.')
+    }
     case 'hartRead':
       return hartRead(fieldAction(s))
     case 'hartLoopTest': {
-      if (!s.hart.connected || !solveLoop(s).hartReachable) return log(s, 'warn', 'HART: no device to command.')
+      const err = requireDevice(s)
+      if (err) return log(s, 'warn', err)
       const next = { ...s, hart: { ...s.hart, loopTest: a.ma } }
-      return log(next, 'action', a.ma == null ? 'HART: loop test ended, output returned to PV.' : `HART: loop test – output fixed at ${a.ma.toFixed(2)} mA.`)
+      return log(next, 'action', a.ma == null ? 'Trex: loop test ended, output returned to PV.' : `Trex: loop test – output fixed at ${a.ma.toFixed(2)} mA.`)
     }
     case 'hartSetRange': {
-      if (!s.hart.connected || !solveLoop(s).hartReachable) return log(s, 'warn', 'HART: no device to configure.')
-      if (!(a.urv > a.lrv)) return log(s, 'warn', 'HART: URV must be greater than LRV.')
+      const err = requireDevice(s)
+      if (err) return log(s, 'warn', err)
+      if (!(a.urv > a.lrv)) return log(s, 'warn', 'Trex: URV must be greater than LRV.')
       const next = { ...s, xmtr: { lrv: a.lrv, urv: a.urv }, hart: { ...s.hart, screen: null } }
-      return log(next, 'action', `HART: range set LRV ${a.lrv} / URV ${a.urv} ${s.scenario.loop.unit}.`)
+      return log(next, 'action', `Trex: range set LRV ${a.lrv} / URV ${a.urv} ${s.scenario.loop.unit}.`)
+    }
+    case 'hartApply': {
+      const err = requireDevice(s)
+      if (err) return log(s, 'warn', err)
+      const pv = Math.round(solveLoop(s).pressureSeen * 10) / 10
+      const xmtr = a.which === 'lrv' ? { ...s.xmtr, lrv: pv } : { ...s.xmtr, urv: pv }
+      if (!(xmtr.urv > xmtr.lrv)) return log(s, 'warn', 'Trex: applied value would make URV ≤ LRV.')
+      return log({ ...s, xmtr, hart: { ...s.hart, screen: null } }, 'action', `Trex: ${a.which.toUpperCase()} set to applied pressure ${pv} ${s.scenario.loop.unit}.`)
+    }
+    case 'hartZeroTrim': {
+      const err = requireDevice(s)
+      if (err) return log(s, 'warn', err)
+      const pv = solveLoop(s).pressureSeen
+      if (Math.abs(pv) > 0.05 * (s.xmtr.urv - s.xmtr.lrv)) return log(s, 'warn', `Trex: zero trim refused, applied pressure ${pv.toFixed(1)} is not near zero. Vent the transmitter first.`)
+      return log(s, 'action', 'Trex: sensor zero trim completed.')
     }
     case 'valve': {
       const s1 = fieldAction(s)
@@ -273,10 +363,8 @@ export function reduce(s: SessionState, a: Action): SessionState {
     }
     case 'repair':
       return applyRepair(fieldAction(s), a.id)
-    case 'diagnose': {
-      const label = a.id
-      return log({ ...s, diagnosis: a.id }, 'action', `Diagnosis recorded: ${label}`)
-    }
+    case 'diagnose':
+      return log({ ...s, diagnosis: a.id }, 'action', `Diagnosis recorded: ${a.id}`)
     case 'finish':
       return log({ ...s, finished: true }, 'info', 'Work order closed by technician.')
   }

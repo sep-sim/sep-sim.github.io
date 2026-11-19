@@ -1,0 +1,114 @@
+/* ---------- Fluke 789 ProcessMeter ---------- */
+.f789 { display: grid; gap: 10px; }
+.f789-face {
+  background: #2e2f31; border: 8px solid #f6c700; border-radius: 22px; padding: 12px 14px 14px;
+  box-shadow: inset 0 0 0 2px #1b1b1b, 0 6px 18px rgba(0, 0, 0, 0.5);
+}
+.f789-brand { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+.f789-logo { background: #f6c700; color: #111; font-weight: 900; letter-spacing: 0.12em; padding: 1px 8px; border-radius: 3px; font-size: 12px; }
+.f789-model { color: #d7d7d7; font-size: 12px; font-weight: 600; }
+.f789-lcd {
+  background: #c9d3c3; color: #141a14; border-radius: 6px; padding: 8px 10px; border: 3px solid #1b1b1b;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.35); min-height: 96px; font-family: Consolas, "Courier New", monospace;
+}
+.f789-lcd.off { background: #9aa396; }
+.f789-ann { display: flex; gap: 8px; font-size: 10px; min-height: 14px; font-weight: 700; }
+.f789-ann .bad { color: #a30000; }
+.f789-primary { display: flex; align-items: baseline; justify-content: flex-end; gap: 10px; margin: 4px 0; }
+.f789-digits { font-size: 40px; font-weight: 700; letter-spacing: 0.04em; line-height: 1; }
+.f789-unit { font-size: 16px; font-weight: 700; width: 48px; }
+.f789-secondary { display: flex; justify-content: space-between; align-items: center; font-size: 14px; font-weight: 700; min-height: 18px; }
+.f789-bar { display: inline-flex; gap: 1px; }
+.f789-bar i { display: inline-block; width: 6px; height: 10px; background: rgba(20, 26, 20, 0.12); }
+.f789-bar i.on { background: #141a14; }
+.f789-keys { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 10px; }
+.f789-keys.out { grid-template-columns: repeat(5, 1fr); }
+.f789-keys.adj { grid-template-columns: auto 1fr 1fr auto 1fr 1fr; align-items: center; }
+.f789-keylabel { color: #bbb; font-size: 10px; font-weight: 700; padding: 0 4px; }
+.f789-keys button {
+  background: #5a5c60; color: #f3f3f3; border: 1px solid #1b1b1b; border-bottom: 3px solid #1b1b1b; border-radius: 6px;
+  font-size: 10px; font-weight: 700; padding: 6px 2px; line-height: 1.15; min-height: 34px;
+}
+.f789-keys button small { display: block; font-size: 8px; font-weight: 400; color: #f6c700; text-transform: uppercase; }
+.f789-keys button:hover:not(:disabled) { background: #6a6c70; border-color: #1b1b1b; }
+.f789-keys button:active:not(:disabled) { border-bottom-width: 1px; transform: translateY(2px); }
+.f789-keys button.lit { background: #f6c700; color: #111; }
+.f789-keys.out button { background: #4a6fa5; }
+.f789-keys.out button.lit { background: #f6c700; color: #111; }
+.f789-knob-area { display: flex; justify-content: center; margin: 14px 0 4px; }
+.f789-knob-labels { position: relative; width: 210px; height: 210px; }
+.f789-pos {
+  position: absolute; transform: translate(-50%, -50%); background: transparent; border: 0; color: #e6e6e6; padding: 2px 4px;
+  font-size: 11px; line-height: 1; text-align: center; display: grid; gap: 1px; border-radius: 4px;
+}
+.f789-pos small { font-size: 8px; color: #bbb; }
+.f789-pos.sel { color: #f6c700; }
+.f789-pos.sel small { color: #f6c700; }
+.f789-pos:hover { background: rgba(255, 255, 255, 0.08); border-color: transparent; }
+.f789-knob {
+  position: absolute; left: 50%; top: 50%; width: 110px; height: 110px; transform: translate(-50%, -50%); border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #6d6f73, #2a2b2d 70%); border: 3px solid #141414; cursor: pointer;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.6), inset 0 0 0 6px #3a3b3e;
+}
+.f789-pointer { position: absolute; left: 50%; top: 50%; width: 6px; height: 50px; margin-left: -3px; margin-top: -50px; transform-origin: 50% 100%; }
+.f789-pointer::before { content: ""; position: absolute; left: 0; top: 0; width: 6px; height: 26px; background: #f6c700; border-radius: 3px; }
+.f789-jacks { display: flex; justify-content: center; gap: 26px; margin-top: 10px; color: #ddd; font-size: 10px; font-weight: 700; }
+.f789-jack { display: grid; justify-items: center; gap: 3px; }
+.f789-jack i { width: 20px; height: 20px; border-radius: 50%; background: #111; border: 3px solid #444; }
+.f789-jack.red i { border-color: #e23b3b; box-shadow: 0 0 0 2px #e23b3b55; }
+.f789-jack.black i { border-color: #999; }
+.f789-leads { display: flex; gap: 14px; align-items: center; font-size: 12px; flex-wrap: wrap; }
+
+/* ---------- AMS Trex ---------- */
+.trex { display: grid; gap: 6px; justify-items: center; }
+.trex-screen {
+  width: 100%; max-width: 360px; height: 520px; background: #f3f5f8; color: #16212b; border-radius: 10px; overflow: hidden;
+  display: flex; flex-direction: column; position: relative; border: 10px solid #23272b;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.6), inset 0 0 0 1px #000; font-size: 13px;
+}
+.trex-status { display: flex; justify-content: space-between; background: #0f1b2a; color: #cfe3ff; font-size: 11px; padding: 3px 10px; }
+.trex-header { display: flex; align-items: center; gap: 6px; background: #1f5f9c; color: #fff; padding: 8px 6px; font-weight: 600; }
+.trex-title { flex: 1; text-align: center; font-size: 13px; }
+.trex-back { background: transparent; border: 0; color: #fff; font-size: 20px; line-height: 1; padding: 0 8px; }
+.trex-back:disabled { opacity: 0.25; }
+.trex-list { flex: 1; overflow: auto; }
+.trex-row {
+  display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; background: #fff; border: 0; border-bottom: 1px solid #dde3ea;
+  border-radius: 0; padding: 11px 12px; color: #16212b; font-size: 13px;
+}
+.trex-row:hover:not(:disabled) { background: #eef4fb; border-color: #dde3ea; }
+.trex-row:disabled { opacity: 1; cursor: default; }
+.trex-row.bad .trex-rowlabel { color: #b42318; font-weight: 600; }
+.trex-row.muted .trex-rowlabel { color: #5b6b7b; white-space: normal; }
+.trex-rowlabel { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.trex-rowval { color: #1f5f9c; font-family: Consolas, monospace; font-size: 12px; white-space: nowrap; }
+.trex-chev { color: #8a97a6; font-size: 18px; line-height: 1; }
+.trex-tabs { display: flex; border-top: 1px solid #cfd6de; background: #fff; }
+.trex-tabs button { flex: 1; border: 0; border-radius: 0; background: #fff; color: #5b6b7b; font-size: 11px; padding: 9px 2px; }
+.trex-tabs button.active { color: #1f5f9c; font-weight: 700; box-shadow: inset 0 3px 0 #1f5f9c; }
+.trex-home { flex: 1; display: flex; flex-direction: column; gap: 12px; padding: 18px 16px; }
+.trex-apptitle { font-size: 18px; font-weight: 700; color: #1f5f9c; }
+.trex-big { background: #fff; border: 1px solid #cfd6de; color: #16212b; padding: 14px; font-size: 14px; font-weight: 600; border-radius: 8px; }
+.trex-big.primary { background: #1f5f9c; color: #fff; border-color: #1f5f9c; }
+.trex-big:disabled { color: #9aa6b2; }
+.trex-link { background: transparent; border: 0; color: #1f5f9c; text-align: left; padding: 4px 0; }
+.trex-note { color: #5b6b7b; font-size: 12px; line-height: 1.4; }
+.trex-nodev { font-size: 16px; font-weight: 700; color: #b42318; }
+.trex-switch { display: flex; justify-content: space-between; align-items: center; background: #fff; border: 1px solid #cfd6de; border-radius: 8px; padding: 10px 12px; }
+.trex-entry { flex: 1; display: flex; flex-direction: column; padding: 14px; gap: 10px; }
+.trex-entrytitle { font-weight: 700; color: #1f5f9c; }
+.trex-entryval { background: #fff; border: 1px solid #cfd6de; border-radius: 6px; padding: 10px; font-family: Consolas, monospace; font-size: 22px; text-align: right; min-height: 46px; }
+.trex-keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: auto; }
+.trex-keypad button { background: #fff; border: 1px solid #cfd6de; color: #16212b; font-size: 18px; padding: 12px 0; border-radius: 6px; }
+.trex-keypad button.cancel { color: #b42318; font-size: 13px; }
+.trex-keypad button.ok { background: #1f5f9c; color: #fff; border-color: #1f5f9c; font-size: 13px; }
+.trex-toast { position: absolute; left: 50%; bottom: 52px; transform: translateX(-50%); background: #16212b; color: #fff; padding: 6px 12px; border-radius: 999px; font-size: 12px; white-space: nowrap; }
+.trex-chin { width: 60%; max-width: 360px; height: 10px; }
+.trex-chin span { display: block; width: 46px; height: 6px; margin: 0 auto; background: #3a3f45; border-radius: 3px; }
+
+/* diagram fuse */
+.fuse rect { fill: var(--panel-2); stroke: var(--text); }
+.fuse.pulled rect { fill: #4d1f22; stroke: var(--bad); }
+.fuse:hover rect { stroke: var(--accent); }
+
+main { grid-template-columns: 1fr 440px; }

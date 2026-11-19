@@ -39,6 +39,7 @@ function Sim({ scenario, onExit }: { scenario: Scenario; onExit: () => void }) {
             onProbe={(node) => dispatch({ type: 'probe', node })}
             onInspect={(where) => dispatch({ type: 'inspect', where })}
             onValve={(open) => dispatch({ type: 'valve', open })}
+            onFuse={(pulled) => dispatch({ type: 'fuse', pulled })}
           />
         </section>
         <aside>

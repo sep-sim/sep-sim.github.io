@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import type { Action } from '../engine/session'
-import type { SessionState, MeterMode } from '../engine/types'
-import { DIAGNOSES, NODE_LABEL, PREWORK_CHECKLIST, REPAIRS } from '../engine/types'
+import type { SessionState } from '../engine/types'
+import { DIAGNOSES, PREWORK_CHECKLIST, REPAIRS } from '../engine/types'
 import type { LoopSolution } from '../engine/loop'
 import { hmiReading } from '../engine/loop'
+import { Fluke789 } from './Fluke789'
+import { Trex } from './Trex'
 
 type Tab = 'hmi' | 'meter' | 'hart' | 'manifold' | 'prework' | 'closeout'
 
@@ -18,8 +20,8 @@ export function Toolbox({ state, sol, dispatch }: Props) {
   const tabs: { id: Tab; label: string }[] = [
     { id: 'prework', label: 'Pre-work' },
     { id: 'hmi', label: 'HMI' },
-    { id: 'meter', label: 'Meter' },
-    { id: 'hart', label: 'HART' },
+    { id: 'meter', label: 'Fluke 789' },
+    { id: 'hart', label: 'Trex' },
     { id: 'manifold', label: 'Manifold' },
     { id: 'closeout', label: 'Close-out' },
   ]
@@ -33,8 +35,8 @@ export function Toolbox({ state, sol, dispatch }: Props) {
       <div className="tab-body">
         {tab === 'prework' && <Prework state={state} dispatch={dispatch} />}
         {tab === 'hmi' && <Hmi state={state} sol={sol} />}
-        {tab === 'meter' && <Meter state={state} dispatch={dispatch} />}
-        {tab === 'hart' && <Hart state={state} sol={sol} dispatch={dispatch} />}
+        {tab === 'meter' && <Fluke789 state={state} sol={sol} dispatch={dispatch} />}
+        {tab === 'hart' && <Trex state={state} sol={sol} dispatch={dispatch} />}
         {tab === 'manifold' && <Manifold state={state} dispatch={dispatch} />}
         {tab === 'closeout' && <Closeout state={state} dispatch={dispatch} />}
       </div>
@@ -96,89 +98,6 @@ function Hmi({ state, sol }: { state: SessionState; sol: LoopSolution }) {
         {r.ma > 20.6 && <div className="alarm">PT-101 HH  BAD QUALITY</div>}
         {!bad && r.eu < 50 && <div className="alarm">PT-101 LL  LOW-LOW PRESSURE</div>}
         {!bad && r.eu > 480 && <div className="alarm">PT-101 HH  HIGH-HIGH PRESSURE</div>}
-      </div>
-    </div>
-  )
-}
-
-function Meter({ state, dispatch }: { state: SessionState; dispatch: (a: Action) => void }) {
-  const m = state.meter
-  const modes: MeterMode[] = ['V', 'mA', 'OHM']
-  return (
-    <div>
-      <div className="meter-display">{m.display}</div>
-      <div className="row">
-        {modes.map((mode) => (
-          <button key={mode} className={m.mode === mode ? 'active' : ''} onClick={() => dispatch({ type: 'meterMode', mode })}>
-            {mode === 'OHM' ? 'Ω' : mode === 'V' ? 'V DC' : 'mA DC'}
-          </button>
-        ))}
-        <button onClick={() => dispatch({ type: 'meterClear' })}>Clear</button>
-      </div>
-      <p className="muted">
-        {m.mode === 'mA'
-          ? 'Click one terminal to lift the wire and insert the meter in series. The TEST terminals on PT-101 read current without breaking the loop.'
-          : 'Click two test points on the diagram: red lead first, black lead second.'}
-      </p>
-      <table className="kv">
-        <tbody>
-          <tr><td className="lead-a">Red</td><td>{m.probeA ? NODE_LABEL[m.probeA] : '—'}</td></tr>
-          {m.mode !== 'mA' && <tr><td className="lead-b">Black</td><td>{m.probeB ? NODE_LABEL[m.probeB] : '—'}</td></tr>}
-        </tbody>
-      </table>
-      <h4>Cabinet</h4>
-      <div className="row">
-        <button onClick={() => dispatch({ type: 'fuse', pulled: !state.fusePulled })}>
-          {state.fusePulled ? 'Re-seat fuse F1' : 'Pull fuse F1'}
-        </button>
-      </div>
-      <p className="muted">Resistance checks need a dead loop. Pull F1 first.</p>
-    </div>
-  )
-}
-
-function Hart({ state, sol, dispatch }: { state: SessionState; sol: LoopSolution; dispatch: (a: Action) => void }) {
-  const [lrv, setLrv] = useState(String(state.xmtr.lrv))
-  const [urv, setUrv] = useState(String(state.xmtr.urv))
-  const [testMa, setTestMa] = useState('12')
-  const scr = state.hart.screen
-  return (
-    <div>
-      <div className="row">
-        {!state.hart.connected
-          ? <button onClick={() => dispatch({ type: 'hartConnect' })}>Connect across loop</button>
-          : <button onClick={() => dispatch({ type: 'hartDisconnect' })}>Disconnect</button>}
-        <button disabled={!state.hart.connected} onClick={() => dispatch({ type: 'hartRead' })}>Poll device</button>
-      </div>
-      <div className="hart-screen">
-        {!state.hart.connected && <div className="muted">Communicator off loop.</div>}
-        {state.hart.connected && !scr && <div className="muted">{sol.hartReachable ? 'Connected. Poll to read device.' : 'No device found.'}</div>}
-        {scr && (
-          <table className="kv">
-            <tbody>
-              <tr><td>Tag</td><td>{scr.tag}</td></tr>
-              <tr><td>PV</td><td>{scr.pv.toFixed(1)} {state.scenario.loop.unit}</td></tr>
-              <tr><td>AO</td><td>{scr.ao.toFixed(2)} mA</td></tr>
-              <tr><td>LRV / URV</td><td>{scr.lrv} / {scr.urv} {state.scenario.loop.unit}</td></tr>
-              <tr><td>Status</td><td>{scr.status.join(', ')}</td></tr>
-            </tbody>
-          </table>
-        )}
-      </div>
-      <h4>Loop test</h4>
-      <div className="row">
-        <input value={testMa} onChange={(e) => setTestMa(e.target.value)} style={{ width: 60 }} /> mA
-        <button disabled={!state.hart.connected} onClick={() => dispatch({ type: 'hartLoopTest', ma: Number(testMa) })}>Fix output</button>
-        <button disabled={!state.hart.connected} onClick={() => dispatch({ type: 'hartLoopTest', ma: 4 })}>4</button>
-        <button disabled={!state.hart.connected} onClick={() => dispatch({ type: 'hartLoopTest', ma: 20 })}>20</button>
-        <button disabled={!state.hart.connected || state.hart.loopTest == null} onClick={() => dispatch({ type: 'hartLoopTest', ma: null })}>End test</button>
-      </div>
-      {state.hart.loopTest != null && <div className="warn-inline">Output fixed at {state.hart.loopTest} mA</div>}
-      <h4>Range</h4>
-      <div className="row">
-        LRV <input value={lrv} onChange={(e) => setLrv(e.target.value)} style={{ width: 60 }} />
-        URV <input value={urv} onChange={(e) => setUrv(e.target.value)} style={{ width: 60 }} />
-        <button disabled={!state.hart.connected} onClick={() => dispatch({ type: 'hartSetRange', lrv: Number(lrv), urv: Number(urv) })}>Write</button>
       </div>
     </div>
   )

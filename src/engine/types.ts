@@ -107,8 +107,30 @@ export interface Scenario {
 export type LogKind = 'info' | 'measure' | 'action' | 'warn' | 'hmi' | 'inspect'
 export interface LogEntry { t: number; kind: LogKind; text: string }
 
-export type MeterMode = 'V' | 'mA' | 'OHM'
-export interface MeterState { mode: MeterMode; probeA: NodeId | null; probeB: NodeId | null; display: string }
+/** Rotary positions of the Fluke 789 ProcessMeter, clockwise from OFF. */
+export type MeterMode = 'OFF' | 'VAC' | 'VDC' | 'OHM' | 'mA' | 'SOURCE' | 'SIM'
+export const METER_MODES: MeterMode[] = ['OFF', 'VAC', 'VDC', 'OHM', 'mA', 'SOURCE', 'SIM']
+
+export type RampMode = 'off' | 'slow' | 'fast' | 'step'
+
+export type MeterKey =
+  | 'RANGE' | 'HOLD' | 'LOOP_POWER' | 'HART_250'
+  | 'ZERO' | 'HUNDRED' | 'SPAN_CHECK' | 'STEP' | 'RAMP'
+  | 'COARSE_UP' | 'COARSE_DN' | 'FINE_UP' | 'FINE_DN'
+
+export interface MeterState {
+  mode: MeterMode
+  probeA: NodeId | null
+  probeB: NodeId | null
+  /** Snapshot shown while HOLD is active. */
+  held: string | null
+  loopPower: boolean
+  hart250: boolean
+  /** Output set-point for SOURCE / SIM, mA. */
+  outMa: number
+  ramp: RampMode
+  rampDir: 1 | -1
+}
 
 export interface HartScreen {
   tag: string
@@ -136,10 +158,11 @@ export interface SessionState {
   trappedPressure: number
   pumpPressure: number | null
   xmtr: { lrv: number; urv: number }
-  hart: { connected: boolean; loopTest: number | null; screen: HartScreen | null }
+  hart: { connected: boolean; loopPower: boolean; loopTest: number | null; screen: HartScreen | null }
   meter: MeterState
   measurements: number
   ohmsOnLive: number
+  sourceIntoLive: number
   pumpWithIsolationOpen: number
   inspections: Partial<Record<InspectWhere, string>>
   diagnosis: DiagnosisId | null

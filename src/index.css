@@ -65,7 +65,6 @@ svg.site { width: 100%; height: 100%; max-height: 100%; font-family: inherit; }
 .clickable { cursor: pointer; }
 .tiny { fill: var(--muted); font-size: 9px; }
 .wire { fill: none; stroke-width: 2.5; stroke-linejoin: round; }
-.fuse { fill: var(--panel-2); stroke: var(--text); }
 .resistor { fill: var(--panel-2); stroke: var(--text); }
 .cable-shield { fill: none; stroke: var(--muted); stroke-dasharray: 4 3; }
 .lcd rect, .lcd { fill: #0b2a1e; stroke: #1f4d35; }
