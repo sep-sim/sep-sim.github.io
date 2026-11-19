@@ -70,3 +70,10 @@ Model notes worth knowing before touching it:
   Opening the wye bar is what localizes a winding fault.
 - Violations are recorded once each with a count; `requireHandsOn()` is the gate for any hands-on action.
 - `done` flags record history for scoring after restoration (locks removed, breaker closed again).
+
+## Deploy
+
+Public repo `QuantumWick/SEPSim`, GitHub Pages at https://quantumwick.github.io/SEPSim/ built by
+`.github/workflows/deploy.yml` on every push to `main` (pnpm install, test, build with `GITHUB_PAGES=true`, deploy-pages).
+`vite.config.ts` sets `base: '/SEPSim/'` only when `GITHUB_PAGES` is set, so local dev stays at `/`.
+Feature branches merge to `main` by fast-forward; pushing `main` is the release.

@@ -4,7 +4,11 @@ Field-realistic training for I&E and electrical technicians in midstream pipelin
 fault; the technician does the pre-work, dresses for the hazard, isolates, verifies, tests with the instruments the crew
 actually carries, repairs, restores, and gets a scored debrief with every violation called out.
 
-## Run
+## Live
+
+https://quantumwick.github.io/SEPSim/ — deployed from `main` by GitHub Actions on every push.
+
+## Run locally
 
 ```bash
 pnpm install
