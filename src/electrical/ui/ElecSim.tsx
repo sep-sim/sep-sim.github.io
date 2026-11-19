@@ -12,6 +12,8 @@ import { TicTracer } from './TicTracer'
 import { ArcLabelModal } from './ArcLabel'
 import { Closeout, Keypad, Loto, PpeLocker, Prework } from './Panels'
 import { WorkLog } from '../../components/WorkLog'
+import { LogDock } from '../../components/LogDock'
+import { useLogDock } from '../../components/useLogDock'
 
 type Tab = 'prework' | 'ppe' | 'loto' | 'tic' | 'dmm' | 'megger' | 'keypad' | 'closeout'
 
@@ -19,6 +21,7 @@ export function ElecSim({ scenario, onExit }: { scenario: ElecScenario; onExit: 
   const [state, dispatch] = useReducer(reduceElec, scenario, createElecSession)
   const [tab, setTab] = useState<Tab>('prework')
   const [label, setLabel] = useState(false)
+  const { dock, setDock, simStyle } = useLogDock()
 
   useEffect(() => {
     const id = setInterval(() => dispatch({ type: 'tick' }), 1000)
@@ -81,7 +84,7 @@ export function ElecSim({ scenario, onExit }: { scenario: ElecScenario; onExit: 
   }
 
   return (
-    <div className="sim">
+    <div className="sim" style={simStyle}>
       <header>
         <div>
           <span className="brand">SEPSim</span>
@@ -126,7 +129,7 @@ export function ElecSim({ scenario, onExit }: { scenario: ElecScenario; onExit: 
         </aside>
       </main>
       <footer>
-        <WorkLog log={state.log} />
+        <LogDock log={state.log} dock={dock} setDock={setDock} />
       </footer>
       {label && <ArcLabelModal label={scenario.label} onClose={() => setLabel(false)} onDress={() => { setLabel(false); setTab('ppe') }} />}
     </div>

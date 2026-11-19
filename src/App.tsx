@@ -5,7 +5,8 @@ import { solveLoop } from './engine/loop'
 import { SCENARIOS, pickRandomScenario } from './scenarios'
 import { SiteDiagram } from './components/SiteDiagram'
 import { Toolbox } from './components/Toolbox'
-import { WorkLog } from './components/WorkLog'
+import { LogDock } from './components/LogDock'
+import { useLogDock } from './components/useLogDock'
 import { Results } from './components/Results'
 import type { ElecScenario } from './electrical/types'
 import { ELEC_SCENARIOS, pickRandomElecScenario } from './electrical/scenarios'
@@ -14,6 +15,7 @@ import { ElecSim } from './electrical/ui/ElecSim'
 function Sim({ scenario, onExit }: { scenario: Scenario; onExit: () => void }) {
   const [state, dispatch] = useReducer(reduce, scenario, createSession)
   const sol = useMemo(() => solveLoop(state), [state])
+  const { dock, setDock, simStyle } = useLogDock()
 
   useEffect(() => {
     const id = setInterval(() => dispatch({ type: 'tick' }), 1000)
@@ -25,7 +27,7 @@ function Sim({ scenario, onExit }: { scenario: Scenario; onExit: () => void }) {
   }
 
   return (
-    <div className="sim">
+    <div className="sim" style={simStyle}>
       <header>
         <div>
           <span className="brand">SEPSim</span>
@@ -50,7 +52,7 @@ function Sim({ scenario, onExit }: { scenario: Scenario; onExit: () => void }) {
         </aside>
       </main>
       <footer>
-        <WorkLog log={state.log} />
+        <LogDock log={state.log} dock={dock} setDock={setDock} />
       </footer>
     </div>
   )
