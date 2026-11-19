@@ -1,0 +1,121 @@
+import type { Scenario, LoopConfig, ProcessModel } from '../engine/types'
+
+const PT101: LoopConfig = {
+  tag: 'PT-101',
+  description: 'Discharge pressure, Station 4 pump unit 1',
+  lrv: 0,
+  urv: 500,
+  unit: 'psig',
+  supplyVolts: 24,
+  loadOhms: 250,
+  wireOhmsPerConductor: 4.2,
+  factoryLrv: 0,
+  factoryUrv: 1000,
+}
+
+const LINE: ProcessModel = { basePressure: 312, swing: 9, period: 75, noise: 0.6 }
+
+const normal = { isolationOpen: true, trappedPressure: 0, xmtrLrv: 0, xmtrUrv: 500 }
+
+export const SCENARIOS: Scenario[] = [
+  {
+    id: 'jb-loose',
+    title: 'PT-101 reads zero – low-low alarm',
+    difficulty: 'basic',
+    workOrder: 'Controller reports PT-101 dropped to 0 psig with BAD quality at 03:40 and the low-low alarm is standing. PG-101 on the line reads normal. Investigate and return the point to service.',
+    loop: PT101,
+    process: LINE,
+    faults: [{ kind: 'loose_terminal_jb_plus' }],
+    initial: normal,
+    answer: { diagnosis: 'loose_jb', repairs: ['re_terminate_jb'] },
+    targetMeasurements: 4,
+  },
+  {
+    id: 'fuse',
+    title: 'PT-101 reads zero after lightning storm',
+    difficulty: 'basic',
+    workOrder: 'Overnight storm. PT-101 has read 0 psig, BAD quality, since 22:15. Other points on the RTU are healthy. Investigate and restore.',
+    loop: PT101,
+    process: LINE,
+    faults: [{ kind: 'blown_fuse' }],
+    initial: normal,
+    answer: { diagnosis: 'blown_fuse', repairs: ['replace_fuse'] },
+    targetMeasurements: 4,
+  },
+  {
+    id: 'cable-open',
+    title: 'PT-101 reads zero after excavation nearby',
+    difficulty: 'intermediate',
+    workOrder: 'Third-party excavation crossed the cable route yesterday. PT-101 went to 0 psig, BAD quality, at 14:05. Find the fault and restore the point.',
+    loop: PT101,
+    process: LINE,
+    faults: [{ kind: 'open_minus_conductor' }],
+    initial: normal,
+    answer: { diagnosis: 'open_cable_minus', repairs: ['replace_cable_pair'] },
+    targetMeasurements: 6,
+  },
+  {
+    id: 'xmtr-high',
+    title: 'PT-101 pegged high – high-high alarm',
+    difficulty: 'intermediate',
+    workOrder: 'PT-101 jumped to over 550 psig with BAD quality and tripped the high-high alarm. Controller confirms PG-101 reads about 310 psig. Pump unit 1 is locked out until the point is trusted again.',
+    loop: PT101,
+    process: LINE,
+    faults: [{ kind: 'xmtr_fail_high' }],
+    initial: normal,
+    answer: { diagnosis: 'xmtr_fail_high', repairs: ['replace_transmitter'] },
+    targetMeasurements: 4,
+  },
+  {
+    id: 'range',
+    title: 'PT-101 reads about half of the gauge',
+    difficulty: 'intermediate',
+    workOrder: 'Since a transmitter swap last week, PT-101 on SCADA reads roughly half of PG-101. Operations suspects the gauge. Verify the loop end to end.',
+    loop: PT101,
+    process: LINE,
+    faults: [],
+    initial: { ...normal, xmtrLrv: 0, xmtrUrv: 1000 },
+    answer: { diagnosis: 'range_mismatch', repairs: [] },
+    targetMeasurements: 3,
+  },
+  {
+    id: 'isolation',
+    title: 'PT-101 flat-lined while line pressure cycled',
+    difficulty: 'basic',
+    workOrder: 'PT-101 has shown a perfectly flat 318 psig for 6 hours while the station cycled through two pump starts. Quality is GOOD. A contractor was on site this morning. Investigate.',
+    loop: PT101,
+    process: LINE,
+    faults: [],
+    initial: { isolationOpen: false, trappedPressure: 318, xmtrLrv: 0, xmtrUrv: 500 },
+    answer: { diagnosis: 'isolation_closed', repairs: [] },
+    targetMeasurements: 3,
+  },
+  {
+    id: 'plugged',
+    title: 'PT-101 sluggish then stuck',
+    difficulty: 'advanced',
+    workOrder: 'Over the past week PT-101 has lagged PG-101 more and more. Today it stuck at 290 psig while the line swung 20 psi. Cold weather, heavy crude. Investigate.',
+    loop: PT101,
+    process: LINE,
+    faults: [{ kind: 'impulse_plugged' }],
+    initial: { ...normal, trappedPressure: 290 },
+    answer: { diagnosis: 'impulse_plugged', repairs: ['blowdown_impulse'] },
+    targetMeasurements: 5,
+  },
+  {
+    id: 'reversed',
+    title: 'PT-101 dead after JB-1 rework',
+    difficulty: 'intermediate',
+    workOrder: 'An electrical contractor replaced the JB-1 enclosure yesterday. PT-101 has read 0 psig, BAD quality, since they left. Investigate and restore.',
+    loop: PT101,
+    process: LINE,
+    faults: [{ kind: 'reversed_polarity_jb' }],
+    initial: normal,
+    answer: { diagnosis: 'reversed_polarity', repairs: ['correct_polarity'] },
+    targetMeasurements: 4,
+  },
+]
+
+export function pickRandomScenario(): Scenario {
+  return SCENARIOS[Math.floor(Math.random() * SCENARIOS.length)]
+}
