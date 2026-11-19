@@ -215,3 +215,17 @@ svg.worker.ok { filter: drop-shadow(0 0 6px rgba(61, 220, 132, 0.45)); }
 .cat-table td { padding: 4px; border-bottom: 1px solid var(--line); vertical-align: top; }
 .cat-badge { display: inline-block; width: 20px; height: 20px; border-radius: 4px; color: #fff; font-weight: 800; text-align: center; line-height: 20px; }
 svg.worker { width: 160px; height: 342px; border-radius: 10px; background: #fff; }
+
+/* suit-up layout: figure scales with its column and never covers the fields */
+.suitup-top { grid-template-columns: 140px minmax(0, 1fr); }
+.suitup-figure { width: 140px; min-width: 0; }
+svg.worker { width: 100%; height: auto; max-height: 300px; aspect-ratio: 300 / 640; }
+.suitup-label { min-width: 0; }
+@media (max-width: 900px) {
+  .suitup-top { grid-template-columns: 1fr; justify-items: center; }
+  .suitup-label { width: 100%; }
+}
+@media (max-width: 900px) {
+  .suitup-figure { width: 110px; }
+  svg.worker { max-height: 230px; }
+}
