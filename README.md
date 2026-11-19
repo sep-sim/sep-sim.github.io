@@ -6,7 +6,7 @@ actually carries, repairs, restores, and gets a scored debrief with every violat
 
 ## Live
 
-https://quantumwick.github.io/SEPSim/ — deployed from `main` by GitHub Actions on every push.
+https://sep-sim.github.io/ — deployed from `main` by GitHub Actions on every push.
 
 ## Run locally
 

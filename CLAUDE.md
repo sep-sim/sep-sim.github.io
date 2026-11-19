@@ -73,7 +73,7 @@ Model notes worth knowing before touching it:
 
 ## Deploy
 
-Public repo `QuantumWick/SEPSim`, GitHub Pages at https://quantumwick.github.io/SEPSim/ built by
-`.github/workflows/deploy.yml` on every push to `main` (pnpm install, test, build with `GITHUB_PAGES=true`, deploy-pages).
-`vite.config.ts` sets `base: '/SEPSim/'` only when `GITHUB_PAGES` is set, so local dev stays at `/`.
+Public repo `sep-sim/sep-sim.github.io` (GitHub organization sep-sim), GitHub Pages at https://sep-sim.github.io/ built by
+`.github/workflows/deploy.yml` on every push to `main` (pnpm install, test, build, deploy-pages).
+`vite.config.ts` uses `base: '/'` because the site is the organization root.
 Feature branches merge to `main` by fast-forward; pushing `main` is the release.
