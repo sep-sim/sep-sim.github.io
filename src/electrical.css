@@ -197,3 +197,21 @@ svg.worker.ok { filter: drop-shadow(0 0 6px rgba(61, 220, 132, 0.45)); }
 .rack-item { display: flex; align-items: center; gap: 6px; font-size: 11px; padding: 4px 8px; border-radius: 999px; }
 .rack-item i { width: 12px; height: 12px; border-radius: 50%; border: 1px solid #000; flex: none; }
 .rack-item.worn { border-color: var(--ok); background: #1f4d35; color: #e6ebf0; }
+
+/* gear rack pictures and the category chart */
+.rack-items { display: grid; gap: 4px; }
+.rack-item { display: grid; grid-template-columns: 34px 1fr auto; align-items: center; gap: 8px; text-align: left; padding: 4px 8px; border-radius: 8px; font-size: 11px; }
+.gear-icon { width: 34px; height: 34px; display: block; background: #f3f6fb; border-radius: 6px; padding: 2px; }
+.gear-icon svg { width: 100%; height: 100%; }
+.gear-text { display: grid; line-height: 1.25; }
+.gear-text small { color: var(--muted); font-size: 10px; }
+.rack-item.worn .gear-text small { color: #b9d9c6; }
+.gear-state { font-size: 9px; font-weight: 800; letter-spacing: 0.08em; color: var(--muted); }
+.gear-state.on { color: var(--ok); }
+.ppe-chart { margin-top: 10px; background: var(--panel-2); border-radius: 8px; padding: 6px 10px; }
+.ppe-chart summary { cursor: pointer; font-size: 12px; font-weight: 700; }
+.cat-table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 6px; }
+.cat-table th { text-align: left; color: var(--muted); font-weight: 600; padding: 4px; border-bottom: 1px solid var(--line); }
+.cat-table td { padding: 4px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.cat-badge { display: inline-block; width: 20px; height: 20px; border-radius: 4px; color: #fff; font-weight: 800; text-align: center; line-height: 20px; }
+svg.worker { width: 160px; height: 342px; border-radius: 10px; background: #e9eef6; }

@@ -3,6 +3,8 @@ import { busVolts, chargeLampOn, keypadLit, ppeCheck, suitedUp, REQUIRED_DEAD, d
 import type { ElecState } from '../types'
 import { CHECKLIST, DIAGNOSES, POINT_LABEL, PPE_ITEMS, REPAIRS } from '../types'
 import { Worker } from './Worker'
+import { GearIcon } from './Gear'
+import { PPE_CATEGORIES } from './ppeCategories'
 
 interface P { state: ElecState; dispatch: (a: Action) => void }
 
@@ -31,11 +33,6 @@ export function Prework({ state, dispatch }: P) {
       </table>
     </div>
   )
-}
-
-const SWATCH: Record<string, string> = {
-  hardhat: '#f4f4f0', glasses: '#9fc8ff', hearing: '#f58220', cotton: '#6b7f99', ar8: '#1f3a5f', ar12: '#d9822b', suit40: '#5c6b2f',
-  faceshield: '#8fb3c9', gloves_leather: '#a0744a', gloves00: '#1b1b1b', boots: '#5a3a1e',
 }
 
 export function PpeLocker({ state, dispatch }: P) {
@@ -82,14 +79,30 @@ export function PpeLocker({ state, dispatch }: P) {
               const worn = state.ppe.includes(p.id)
               return (
                 <button key={p.id} className={`rack-item ${worn ? 'worn' : ''}`} title={p.note} onClick={() => dispatch({ type: 'ppe', id: p.id, on: !worn })}>
-                  <i style={{ background: SWATCH[p.id] }} />
-                  <span>{p.label}{p.arcRating != null && p.arcRating > 0 ? ` · ${p.arcRating} cal` : ''}</span>
+                  <span className="gear-icon"><GearIcon id={p.id} /></span>
+                  <span className="gear-text">{p.label}{p.arcRating != null && p.arcRating > 0 ? <b> · {p.arcRating} cal/cm²</b> : ''}<small>{p.note}</small></span>
+                  <span className={`gear-state ${worn ? 'on' : ''}`}>{worn ? 'ON' : 'rack'}</span>
                 </button>
               )
             })}
           </div>
         </div>
       ))}
+      <details className="ppe-chart">
+        <summary>Arc flash PPE category guidelines (NFPA 70E)</summary>
+        <table className="cat-table">
+          <thead><tr><th>Cat</th><th>cal/cm²</th><th>Min rating</th><th>PPE</th></tr></thead>
+          <tbody>
+            {PPE_CATEGORIES.map((c) => (
+              <tr key={c.cat}><td><span className="cat-badge" style={{ background: c.color }}>{c.cat}</span></td><td>{c.range}</td><td>{c.minRating}</td><td>{c.items}</td></tr>
+            ))}
+          </tbody>
+        </table>
+        <p className="muted small">
+          The label on VFD-101 was written by the incident energy method, so the rule is arc rating ≥ {l.incidentEnergy} cal/cm², not the category table.
+          The table applies when a label states a PPE category instead of a cal/cm² figure. Never mix the two on one piece of equipment.
+        </p>
+      </details>
     </div>
   )
 }
