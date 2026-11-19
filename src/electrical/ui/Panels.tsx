@@ -48,8 +48,8 @@ export function PpeLocker({ state, dispatch }: P) {
     <div className="suitup">
       <div className="suitup-top">
         <div className="suitup-figure">
-          <Worker ppe={state.ppe} adequate={chk.adequate} />
-          <div className={`pill ${suited ? 'ok' : 'bad'}`}>{suited ? 'SUITED UP' : confirmed ? 'KIT CHANGED' : 'NOT SUITED UP'}</div>
+          <Worker ppe={state.ppe} />
+          <div className={`suit-state ${suited ? 'ok' : ''}`}>{suited ? 'Suited up' : confirmed ? 'Kit changed since confirming' : 'Not suited up'}</div>
         </div>
         <div className="suitup-label">
           <b>Label on VFD-101</b>
