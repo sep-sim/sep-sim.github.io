@@ -1,62 +1,77 @@
 /* ---------- Fluke 789 ProcessMeter ---------- */
 .f789 { display: grid; gap: 10px; }
-.f789-face {
-  background: #2e2f31; border: 8px solid #f6c700; border-radius: 22px; padding: 12px 14px 14px;
-  box-shadow: inset 0 0 0 2px #1b1b1b, 0 6px 18px rgba(0, 0, 0, 0.5);
+.f789-body {
+  background: #f5b800; border-radius: 26px; padding: 14px 12px 16px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.55), inset 0 0 0 2px #c99400;
 }
-.f789-brand { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
-.f789-logo { background: #f6c700; color: #111; font-weight: 900; letter-spacing: 0.12em; padding: 1px 8px; border-radius: 3px; font-size: 12px; }
-.f789-model { color: #d7d7d7; font-size: 12px; font-weight: 600; }
+.f789-face { background: #4a4b4d; border-radius: 16px; padding: 12px 12px 10px; box-shadow: inset 0 0 0 1px #2a2a2a; }
+.f789-brand { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+.f789-logo { background: #f5b800; color: #111; font-weight: 900; letter-spacing: 0.1em; padding: 1px 8px; border-radius: 3px; font-size: 12px; }
+.f789-model { color: #eee; font-size: 12px; letter-spacing: 0.06em; }
+.f789-model b { font-size: 14px; margin-right: 4px; }
+
 .f789-lcd {
-  background: #c9d3c3; color: #141a14; border-radius: 6px; padding: 8px 10px; border: 3px solid #1b1b1b;
-  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.35); min-height: 96px; font-family: Consolas, "Courier New", monospace;
+  background: #c6cfc6; color: #10140f; border-radius: 6px; padding: 6px 10px 8px; border: 3px solid #1b1b1b;
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.4); font-family: Consolas, "Courier New", monospace; min-height: 128px;
 }
-.f789-lcd.off { background: #9aa396; }
-.f789-ann { display: flex; gap: 8px; font-size: 10px; min-height: 14px; font-weight: 700; }
+.f789-lcd.lit { background: #dbe6d6; }
+.f789-lcd.off { background: #98a196; }
+.f789-units { display: flex; justify-content: flex-end; gap: 12px; font-size: 13px; font-weight: 700; min-height: 16px; }
+.f789-digits { font-size: 52px; font-weight: 700; text-align: right; letter-spacing: 0.02em; line-height: 1; min-height: 52px; }
+.f789-rangeline { display: flex; justify-content: center; gap: 24px; font-size: 11px; min-height: 14px; margin-top: 2px; }
+.f789-rangeline span:last-child { font-weight: 700; }
+.f789-lower { display: flex; justify-content: space-between; align-items: flex-end; gap: 8px; }
+.f789-secondary { font-size: 30px; font-weight: 700; line-height: 1; }
+.f789-ann { display: grid; justify-items: end; font-size: 9px; font-weight: 700; line-height: 1.2; }
 .f789-ann .bad { color: #a30000; }
-.f789-primary { display: flex; align-items: baseline; justify-content: flex-end; gap: 10px; margin: 4px 0; }
-.f789-digits { font-size: 40px; font-weight: 700; letter-spacing: 0.04em; line-height: 1; }
-.f789-unit { font-size: 16px; font-weight: 700; width: 48px; }
-.f789-secondary { display: flex; justify-content: space-between; align-items: center; font-size: 14px; font-weight: 700; min-height: 18px; }
-.f789-bar { display: inline-flex; gap: 1px; }
-.f789-bar i { display: inline-block; width: 6px; height: 10px; background: rgba(20, 26, 20, 0.12); }
-.f789-bar i.on { background: #141a14; }
-.f789-keys { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 10px; }
-.f789-keys.out { grid-template-columns: repeat(5, 1fr); }
-.f789-keys.adj { grid-template-columns: auto 1fr 1fr auto 1fr 1fr; align-items: center; }
-.f789-keylabel { color: #bbb; font-size: 10px; font-weight: 700; padding: 0 4px; }
+
+.f789-keys { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 10px; }
 .f789-keys button {
-  background: #5a5c60; color: #f3f3f3; border: 1px solid #1b1b1b; border-bottom: 3px solid #1b1b1b; border-radius: 6px;
-  font-size: 10px; font-weight: 700; padding: 6px 2px; line-height: 1.15; min-height: 34px;
+  background: #2b2c2e; color: #f3f3f3; border: 1px solid #111; border-bottom: 3px solid #0a0a0a; border-radius: 5px;
+  font-size: 11px; font-weight: 700; padding: 7px 2px; min-height: 30px; letter-spacing: 0.02em;
 }
-.f789-keys button small { display: block; font-size: 8px; font-weight: 400; color: #f6c700; text-transform: uppercase; }
-.f789-keys button:hover:not(:disabled) { background: #6a6c70; border-color: #1b1b1b; }
+.f789-keys button.blue { background: #2f6fd1; }
+.f789-keys button:hover:not(:disabled) { background: #3a3b3e; border-color: #111; }
+.f789-keys button.blue:hover:not(:disabled) { background: #3b7ee0; }
 .f789-keys button:active:not(:disabled) { border-bottom-width: 1px; transform: translateY(2px); }
-.f789-keys button.lit { background: #f6c700; color: #111; }
-.f789-keys.out button { background: #4a6fa5; }
-.f789-keys.out button.lit { background: #f6c700; color: #111; }
-.f789-knob-area { display: flex; justify-content: center; margin: 14px 0 4px; }
-.f789-knob-labels { position: relative; width: 210px; height: 210px; }
+.f789-orange, .f789-tri { display: grid; grid-template-columns: repeat(4, 1fr); text-align: center; color: #f08a24; font-size: 10px; font-weight: 700; opacity: 0.55; margin-top: 4px; }
+.f789-orange.active, .f789-tri.active { opacity: 1; }
+.f789-tri { font-size: 8px; margin-top: 2px; }
+
+.f789-knob-area { position: relative; display: flex; justify-content: center; margin: 10px 0 2px; }
+.f789-round { position: absolute; top: 0; width: 26px; height: 26px; border-radius: 50%; border: 2px solid #111; padding: 0; font-size: 13px; }
+.f789-round.light { left: 4px; background: #2b2c2e; color: #eee; }
+.f789-round.blue { right: 4px; background: #2f6fd1; }
+.f789-knob-labels { position: relative; width: 250px; height: 250px; }
 .f789-pos {
-  position: absolute; transform: translate(-50%, -50%); background: transparent; border: 0; color: #e6e6e6; padding: 2px 4px;
-  font-size: 11px; line-height: 1; text-align: center; display: grid; gap: 1px; border-radius: 4px;
+  position: absolute; transform: translate(-50%, -50%); background: transparent; border: 0; color: #f3f3f3; padding: 2px 4px;
+  font-size: 12px; line-height: 1; text-align: center; display: grid; gap: 2px; border-radius: 4px; white-space: nowrap;
 }
-.f789-pos small { font-size: 8px; color: #bbb; }
-.f789-pos.sel { color: #f6c700; }
-.f789-pos.sel small { color: #f6c700; }
+.f789-pos small { font-size: 8px; color: #ddd; }
+.f789-pos small.orange { color: #f08a24; font-size: 7px; }
+.f789-pos.big b { font-size: 16px; }
+.f789-pos.sel b { color: #f5b800; }
 .f789-pos:hover { background: rgba(255, 255, 255, 0.08); border-color: transparent; }
+.f789-output-brace { position: absolute; right: -2px; top: 54%; color: #f08a24; font-size: 7px; font-weight: 700; letter-spacing: 0.08em; transform: rotate(90deg); }
 .f789-knob {
-  position: absolute; left: 50%; top: 50%; width: 110px; height: 110px; transform: translate(-50%, -50%); border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #6d6f73, #2a2b2d 70%); border: 3px solid #141414; cursor: pointer;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.6), inset 0 0 0 6px #3a3b3e;
+  position: absolute; left: 50%; top: 50%; width: 132px; height: 132px; transform: translate(-50%, -50%); border-radius: 50%;
+  background: radial-gradient(circle at 40% 30%, #3f4043, #1d1e20 72%); border: 3px solid #0e0e0e; cursor: pointer;
+  box-shadow: 0 5px 12px rgba(0, 0, 0, 0.6), inset 0 0 0 4px #2a2b2d;
 }
-.f789-pointer { position: absolute; left: 50%; top: 50%; width: 6px; height: 50px; margin-left: -3px; margin-top: -50px; transform-origin: 50% 100%; }
-.f789-pointer::before { content: ""; position: absolute; left: 0; top: 0; width: 6px; height: 26px; background: #f6c700; border-radius: 3px; }
-.f789-jacks { display: flex; justify-content: center; gap: 26px; margin-top: 10px; color: #ddd; font-size: 10px; font-weight: 700; }
-.f789-jack { display: grid; justify-items: center; gap: 3px; }
-.f789-jack i { width: 20px; height: 20px; border-radius: 50%; background: #111; border: 3px solid #444; }
-.f789-jack.red i { border-color: #e23b3b; box-shadow: 0 0 0 2px #e23b3b55; }
-.f789-jack.black i { border-color: #999; }
+.f789-pointer { position: absolute; left: 50%; top: 50%; width: 22px; height: 66px; margin-left: -11px; margin-top: -66px; transform-origin: 50% 100%; }
+.f789-pointer::before { content: ""; position: absolute; left: 0; top: 4px; width: 22px; height: 118px; background: #111; border-radius: 11px; box-shadow: inset 0 0 0 1px #333; }
+.f789-pointer::after { content: ""; position: absolute; left: 8px; top: 10px; width: 6px; height: 6px; border-radius: 50%; background: #eee; }
+
+.f789-jacklabels { display: flex; justify-content: space-between; color: #f08a24; font-size: 8px; font-weight: 700; margin: 6px 6px 0; }
+.f789-ratings { display: grid; grid-template-columns: repeat(4, 1fr); text-align: center; color: #ddd; font-size: 7px; line-height: 1.2; margin-top: 4px; }
+.f789-jacks { display: grid; grid-template-columns: repeat(4, 1fr); justify-items: center; margin-top: 4px; color: #eee; font-size: 10px; font-weight: 700; }
+.f789-jack { display: grid; justify-items: center; gap: 3px; text-align: center; }
+.f789-jack .j { font-size: 10px; }
+.f789-jack small { font-size: 7px; color: #ccc; line-height: 1.1; }
+.f789-jack small.orange { color: #f08a24; }
+.f789-jack i { width: 22px; height: 22px; border-radius: 50%; background: #111; border: 4px solid #c8102e; box-shadow: inset 0 0 0 3px #000; }
+.f789-jack.black i { border-color: #222; }
+.f789-jack.red i { box-shadow: 0 0 0 3px #ff4d4d88, inset 0 0 0 3px #000; }
 .f789-leads { display: flex; gap: 14px; align-items: center; font-size: 12px; flex-wrap: wrap; }
 
 /* ---------- AMS Trex ---------- */
@@ -110,5 +125,3 @@
 .fuse rect { fill: var(--panel-2); stroke: var(--text); }
 .fuse.pulled rect { fill: #4d1f22; stroke: var(--bad); }
 .fuse:hover rect { stroke: var(--accent); }
-
-main { grid-template-columns: 1fr 440px; }

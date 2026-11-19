@@ -5,7 +5,7 @@ import type {
 } from './types'
 import { NODE_LABEL, PREWORK_CHECKLIST, REPAIRS, SERIES_CAPABLE } from './types'
 import { hasFault, hmiReading, solveLoop } from './loop'
-import { meterReading } from './meter'
+import { meterReading, outputBehaviour } from './meter'
 
 export type Action =
   | { type: 'tick' }
@@ -47,7 +47,7 @@ export function createSession(scenario: Scenario): SessionState {
     pumpPressure: null,
     xmtr: { lrv: scenario.initial.xmtrLrv, urv: scenario.initial.xmtrUrv },
     hart: { connected: false, loopPower: false, loopTest: null, screen: null },
-    meter: { mode: 'OFF', probeA: null, probeB: null, held: null, loopPower: false, hart250: false, outMa: 4, ramp: 'off', rampDir: 1 },
+    meter: { mode: 'OFF', probeA: null, probeB: null, held: null, hart250: false, outMa: 4, ramp: 'slow', rampDir: 1, manualRange: false, rel: null, minMax: 'off', backlight: false },
     measurements: 0,
     ohmsOnLive: 0,
     sourceIntoLive: 0,
@@ -91,12 +91,13 @@ function clampMa(v: number): number {
 
 /** Log what the 789 shows for the current placement, and apply any penalty the reading carries. */
 function recordReading(s: SessionState, countsAsMeasurement: boolean): SessionState {
-  const r = meterReading(s, solveLoop(s))
+  const sol = solveLoop(s)
+  const r = meterReading(s, sol)
   if (!r.logText) return s
   let next: SessionState = countsAsMeasurement ? { ...s, measurements: s.measurements + 1 } : s
   if (r.warn) {
     if (s.meter.mode === 'OHM') next = { ...next, ohmsOnLive: next.ohmsOnLive + 1 }
-    if (s.meter.mode === 'SOURCE') next = { ...next, sourceIntoLive: next.sourceIntoLive + 1 }
+    if (outputBehaviour(s, sol) === 'fighting') next = { ...next, sourceIntoLive: next.sourceIntoLive + 1 }
     next = log(next, 'measure', `789: ${r.logText}`)
     return log(next, 'warn', r.warn)
   }
@@ -107,59 +108,73 @@ function setMeter(s: SessionState, patch: Partial<MeterState>): SessionState {
   return { ...s, meter: { ...s.meter, ...patch } }
 }
 
+function isOutput(mode: MeterMode): boolean {
+  return mode === 'OUT' || mode === 'OUT_AUTO'
+}
+
+/**
+ * Keys on the 789 face. In the OUTPUT positions the orange functions apply:
+ *   100% / 0%  → SpanCheck (20 mA / 4 mA, press again at the limit to toggle)
+ *   MIN MAX / ·))) → %STEP up / down (25 % steps)
+ *   RANGE / REL Δ → COARSE up / down
+ *   HOLD / Hz → FINE up / down
+ */
 function meterKey(s: SessionState, key: MeterKey): SessionState {
   const m = s.meter
   if (m.mode === 'OFF') return s
-  const outputMode = m.mode === 'SOURCE' || m.mode === 'SIM'
+  const out = isOutput(m.mode)
   switch (key) {
-    case 'RANGE':
+    case 'HUNDRED': return out ? setOut(s, m.outMa >= 20 ? 4 : 20) : s
+    case 'ZERO': return out ? setOut(s, m.outMa <= 4 ? 20 : 4) : s
+    case 'MINMAX': {
+      if (out) return setOut(s, STEP_POINTS.find((p) => p > m.outMa + 0.001) ?? 20)
+      const order = ['off', 'max', 'min'] as const
+      return setMeter(s, { minMax: order[(order.indexOf(m.minMax) + 1) % order.length] })
+    }
+    case 'BEEPER': {
+      if (out) return setOut(s, [...STEP_POINTS].reverse().find((p) => p < m.outMa - 0.001) ?? 4)
       return s
+    }
+    case 'RANGE': return out ? setOut(s, m.outMa + 1) : setMeter(s, { manualRange: !m.manualRange })
     case 'HOLD': {
+      if (out) return setOut(s, m.outMa + 0.01)
       if (m.held != null) return setMeter(s, { held: null })
       const r = meterReading(s, solveLoop(s))
-      return setMeter(s, { held: `${r.primary} ${r.unit}`.trim() })
+      return setMeter(s, { held: `${r.primary} ${r.units.join(' ')}`.trim() })
     }
-    case 'LOOP_POWER': {
-      if (m.mode !== 'mA') return s
-      const on = !m.loopPower
-      const next = setMeter(fieldAction(s), { loopPower: on })
-      const logged = log(next, 'action', on ? '789: LOOP POWER on – meter supplies 24 V between its mA leads.' : '789: LOOP POWER off.')
-      return on ? recordReading(logged, true) : logged
+    case 'REL': {
+      if (out) return setOut(s, m.outMa - 1)
+      if (m.rel != null) return setMeter(s, { rel: null })
+      const r = meterReading(s, solveLoop(s))
+      const v = Number(r.primary)
+      return Number.isFinite(v) ? setMeter(s, { rel: v }) : s
     }
-    case 'HART_250': {
-      const on = !m.hart250
-      return log(setMeter(s, { hart250: on }), 'action', on ? '789: 250 Ω HART resistor in.' : '789: 250 Ω HART resistor out.')
+    case 'HZ': return out ? setOut(s, m.outMa - 0.01) : s
+    case 'BACKLIGHT': return setMeter(s, { backlight: !m.backlight })
+    case 'BLUE': {
+      if (m.mode === 'LOOP') {
+        const on = !m.hart250
+        return log(setMeter(s, { hart250: on }), 'action', on ? '789: 250 Ω HART resistor in.' : '789: 250 Ω HART resistor out.')
+      }
+      if (m.mode === 'OUT_AUTO') {
+        const order = ['slow', 'fast', 'step'] as const
+        const ramp = order[(order.indexOf(m.ramp) + 1) % order.length]
+        return log(setMeter(s, { ramp, rampDir: 1 }), 'action', `789: ${ramp === 'step' ? '25 % step' : `${ramp} ramp`} 4–20 mA.`)
+      }
+      return s
     }
-    case 'ZERO': return outputMode ? setOut(s, 4) : s
-    case 'HUNDRED': return outputMode ? setOut(s, 20) : s
-    case 'SPAN_CHECK': return outputMode ? setOut(s, m.outMa >= 12 ? 4 : 20) : s
-    case 'STEP': {
-      if (!outputMode) return s
-      const next = STEP_POINTS.find((p) => p > m.outMa + 0.001) ?? 4
-      return setOut(s, next)
-    }
-    case 'RAMP': {
-      if (!outputMode) return s
-      const order = ['off', 'slow', 'fast', 'step'] as const
-      const ramp = order[(order.indexOf(m.ramp) + 1) % order.length]
-      return log(setMeter(s, { ramp, rampDir: 1 }), 'action', ramp === 'off' ? '789: ramp off.' : `789: ${ramp} ramp 4–20 mA.`)
-    }
-    case 'COARSE_UP': return outputMode ? setOut(s, m.outMa + 1) : s
-    case 'COARSE_DN': return outputMode ? setOut(s, m.outMa - 1) : s
-    case 'FINE_UP': return outputMode ? setOut(s, m.outMa + 0.01) : s
-    case 'FINE_DN': return outputMode ? setOut(s, m.outMa - 0.01) : s
   }
 }
 
 function setOut(s: SessionState, ma: number): SessionState {
-  const next = setMeter(s, { outMa: clampMa(ma), ramp: 'off' })
+  const next = setMeter(s, { outMa: clampMa(ma) })
   const placed = next.meter.probeA != null && next.meter.probeB != null
   return placed ? recordReading(next, false) : next
 }
 
 function rampTick(s: SessionState): SessionState {
   const m = s.meter
-  if (m.ramp === 'off' || (m.mode !== 'SOURCE' && m.mode !== 'SIM')) return s
+  if (m.mode !== 'OUT_AUTO') return s
   let out = m.outMa
   let dir = m.rampDir
   if (m.ramp === 'slow') out += dir * 0.4
@@ -175,8 +190,8 @@ function probe(s: SessionState, node: NodeId): SessionState {
   if (m.mode === 'OFF') return log(s, 'warn', '789 is switched off.')
   const s1 = setMeter(fieldAction(s), { held: null })
 
-  // mA measure without loop power: single-point series insertion
-  if (m.mode === 'mA' && !m.loopPower) {
+  // mA measure: single-point series insertion
+  if (m.mode === 'mA') {
     if (!SERIES_CAPABLE.includes(node)) {
       return log(s1, 'warn', `Cannot insert the meter in series at ${NODE_LABEL[node]} without lifting cabinet wiring. Use a terminal block, JB, or the transmitter TEST terminals.`)
     }
@@ -292,11 +307,11 @@ export function reduce(s: SessionState, a: Action): SessionState {
       return next.checklist[a.id] ? log(next, 'info', `Pre-work: ${item?.label}`) : next
     }
     case 'meterMode':
-      return setMeter(s, { mode: a.mode, probeA: null, probeB: null, held: null, ramp: 'off', loopPower: a.mode === 'mA' ? s.meter.loopPower : false })
+      return setMeter(s, { mode: a.mode, probeA: null, probeB: null, held: null, rel: null, minMax: 'off', rampDir: 1 })
     case 'meterKey':
       return meterKey(s, a.key)
     case 'meterClear':
-      return setMeter(s, { probeA: null, probeB: null, held: null })
+      return setMeter(s, { probeA: null, probeB: null, held: null, rel: null })
     case 'probe':
       return probe(s, a.node)
     case 'inspect':

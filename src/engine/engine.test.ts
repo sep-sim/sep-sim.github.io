@@ -75,9 +75,18 @@ describe('loop solver', () => {
 describe('Fluke 789', () => {
   it('V DC across the bad JB joint reads the supply', () => {
     const s = run(createSession(byId('jb-loose')), { type: 'meterMode', mode: 'VDC' }, { type: 'probe', node: 'JB_1' }, { type: 'probe', node: 'XMTR_PLUS' })
-    expect(reading(s).primary).toBe('24.00')
+    expect(reading(s).primary).toBe('24.000')
+    expect(reading(s).units).toEqual(['V', 'DC'])
     expect(s.measurements).toBe(1)
     expect(s.log.at(-1)?.text).toContain('24.00 V DC')
+  })
+
+  it('REL Δ zeros the display and HOLD freezes it', () => {
+    const s = run(createSession(byId('jb-loose')), { type: 'meterMode', mode: 'VDC' }, { type: 'probe', node: 'TB_1' }, { type: 'probe', node: 'TB_2' })
+    expect(run(s, { type: 'meterKey', key: 'REL' }).meter.rel).toBe(24)
+    expect(reading(run(s, { type: 'meterKey', key: 'REL' })).primary).toBe('0.000')
+    expect(run(s, { type: 'meterKey', key: 'HOLD' }).meter.held).toBe('24.000 V DC')
+    expect(run(s, { type: 'meterKey', key: 'RANGE' }).meter.manualRange).toBe(true)
   })
 
   it('ohms on a live circuit is OL, logged as a warning and penalised', () => {
@@ -99,57 +108,70 @@ describe('Fluke 789', () => {
     expect(s.log.at(-1)?.text).toContain('TEST terminals')
   })
 
-  it('LOOP POWER across a lifted transmitter reads its output even with the fuse blown', () => {
+  it('LOOP POWER position across a lifted transmitter reads its output even with the fuse blown', () => {
     const s = run(createSession(byId('fuse')),
-      { type: 'meterMode', mode: 'mA' }, { type: 'meterKey', key: 'LOOP_POWER' },
+      { type: 'meterMode', mode: 'LOOP' },
       { type: 'probe', node: 'XMTR_PLUS' }, { type: 'probe', node: 'XMTR_MINUS' })
     const sol = solveLoop(s)
     expect(sol.meterCurrent).toBeGreaterThan(13)
     expect(sol.current).toBe(0)
-    expect(Number(reading(s).primary)).toBeCloseTo(sol.meterCurrent, 1)
-    // Trex needs the 789's 250 Ω to talk while the meter powers the device.
+    expect(Number(reading(s).primary)).toBeCloseTo(sol.meterCurrent, 2)
+    expect(reading(s).annunciators).toContain('LOOP POWER')
+    // Trex needs the 789's 250 Ω to talk while the meter powers the device; the blue key switches it in.
     const noR = run(s, { type: 'hartConnect' })
     expect(solveLoop(noR).hartReachable).toBe(false)
     expect(solveLoop(noR).hartBlocked).toContain('250')
-    const withR = run(noR, { type: 'meterKey', key: 'HART_250' }, { type: 'hartRead' })
+    const withR = run(noR, { type: 'meterKey', key: 'BLUE' }, { type: 'hartRead' })
+    expect(withR.meter.hart250).toBe(true)
+    expect(reading(withR).annunciators).toContain('250Ω HART')
     expect(solveLoop(withR).hartReachable).toBe(true)
     expect(withR.hart.screen?.tag).toBe('PT-101')
   })
 
-  it('SIMULATE in the transmitter\'s place drives the HMI; loop is not in service while it does', () => {
+  it('OUTPUT across the transmitter wires on a live loop auto-selects SIMULATE and drives the HMI', () => {
     const base = { ...createSession(byId('jb-loose')), faults: [] } as SessionState
-    const s = run(base, { type: 'meterMode', mode: 'SIM' }, { type: 'meterKey', key: 'HUNDRED' },
+    const s = run(base, { type: 'meterMode', mode: 'OUT' }, { type: 'meterKey', key: 'HUNDRED' },
       { type: 'probe', node: 'XMTR_PLUS' }, { type: 'probe', node: 'XMTR_MINUS' }, { type: 'tick' })
+    expect(reading(s).annunciators).toContain('SIMULATE')
     expect(solveLoop(s).current).toBe(20)
     expect(s.hmiHistory.at(-1)?.eu).toBeCloseTo(500, 5)
     expect(loopInService(s)).toBe(false)
-    const lifted = run(s, { type: 'meterClear' })
-    expect(loopInService(lifted)).toBe(true)
+    expect(loopInService(run(s, { type: 'meterClear' }))).toBe(true)
   })
 
-  it('SOURCE into the RTU input works only with F1 pulled; into a live loop it is penalised', () => {
-    const s0 = run(createSession(byId('cable-open')), { type: 'meterMode', mode: 'SOURCE' }, { type: 'meterKey', key: 'STEP' }, { type: 'meterKey', key: 'STEP' })
+  it('OUTPUT into the RTU input SOURCES only with F1 pulled; into a live input it is penalised', () => {
+    const s0 = run(createSession(byId('cable-open')), { type: 'meterMode', mode: 'OUT' }, { type: 'meterKey', key: 'MINMAX' }, { type: 'meterKey', key: 'MINMAX' })
     expect(s0.meter.outMa).toBe(12)
     const live = run(s0, { type: 'probe', node: 'AI_PLUS' }, { type: 'probe', node: 'AI_MINUS' })
     expect(live.sourceIntoLive).toBe(1)
     expect(reading(live).primary).toBe('OL')
     const dead = run(live, { type: 'fuse', pulled: true }, { type: 'tick' })
+    expect(reading(dead).annunciators).toContain('SOURCE')
     expect(solveLoop(dead).aiCurrent).toBe(12)
     expect(dead.hmiHistory.at(-1)?.eu).toBeCloseTo(250, 5)
     expect(scoreSession(live).penalties.some((p) => p.label.includes('Sourced'))).toBe(true)
   })
 
-  it('ramp advances the output on tick and turns around at 20 mA', () => {
-    let s = run(createSession(byId('range')), { type: 'meterMode', mode: 'SOURCE' }, { type: 'meterKey', key: 'RAMP' })
+  it('output keys: span check, %STEP, COARSE and FINE', () => {
+    let s = run(createSession(byId('range')), { type: 'meterMode', mode: 'OUT' })
+    expect(s.meter.outMa).toBe(4)
+    s = run(s, { type: 'meterKey', key: 'HUNDRED' }); expect(s.meter.outMa).toBe(20)
+    s = run(s, { type: 'meterKey', key: 'HUNDRED' }); expect(s.meter.outMa).toBe(4)
+    s = run(s, { type: 'meterKey', key: 'MINMAX' }); expect(s.meter.outMa).toBe(8)
+    s = run(s, { type: 'meterKey', key: 'BEEPER' }); expect(s.meter.outMa).toBe(4)
+    s = run(s, { type: 'meterKey', key: 'RANGE' }); expect(s.meter.outMa).toBe(5)
+    s = run(s, { type: 'meterKey', key: 'HOLD' }); expect(s.meter.outMa).toBe(5.01)
+    s = run(s, { type: 'meterKey', key: 'REL' }); expect(s.meter.outMa).toBe(4.01)
+    s = run(s, { type: 'meterKey', key: 'HZ' }); expect(s.meter.outMa).toBe(4)
+  })
+
+  it('auto OUTPUT position ramps on tick, blue key cycles ramp type', () => {
+    let s = run(createSession(byId('range')), { type: 'meterMode', mode: 'OUT_AUTO' })
     expect(s.meter.ramp).toBe('slow')
     for (let i = 0; i < 45; i++) s = reduce(s, { type: 'tick' })
     expect(s.meter.outMa).toBeLessThan(20)
     expect(s.meter.rampDir).toBe(-1)
-  })
-
-  it('HOLD freezes the display', () => {
-    const s = run(createSession(byId('jb-loose')), { type: 'meterMode', mode: 'VDC' }, { type: 'probe', node: 'TB_1' }, { type: 'probe', node: 'TB_2' }, { type: 'meterKey', key: 'HOLD' })
-    expect(s.meter.held).toBe('24.00 V DC')
+    expect(run(s, { type: 'meterKey', key: 'BLUE' }).meter.ramp).toBe('fast')
   })
 })
 

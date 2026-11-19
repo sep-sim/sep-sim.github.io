@@ -107,16 +107,22 @@ export interface Scenario {
 export type LogKind = 'info' | 'measure' | 'action' | 'warn' | 'hmi' | 'inspect'
 export interface LogEntry { t: number; kind: LogKind; text: string }
 
-/** Rotary positions of the Fluke 789 ProcessMeter, clockwise from OFF. */
-export type MeterMode = 'OFF' | 'VAC' | 'VDC' | 'OHM' | 'mA' | 'SOURCE' | 'SIM'
-export const METER_MODES: MeterMode[] = ['OFF', 'VAC', 'VDC', 'OHM', 'mA', 'SOURCE', 'SIM']
+/**
+ * Rotary positions of the Fluke 789 ProcessMeter, clockwise from OFF:
+ * OFF · V~ · V⎓ · mV⎓ · Ω/·)))/→|– · mA A (measure) · mA OUTPUT (manual) · mA OUTPUT (auto ramp/step) · mA LOOP POWER.
+ * SOURCE vs SIMULATE is not a position: in an OUTPUT position the meter simulates when it sees external loop
+ * voltage across its leads and sources otherwise.
+ */
+export type MeterMode = 'OFF' | 'VAC' | 'VDC' | 'mVDC' | 'OHM' | 'mA' | 'OUT' | 'OUT_AUTO' | 'LOOP'
+export const METER_MODES: MeterMode[] = ['OFF', 'VAC', 'VDC', 'mVDC', 'OHM', 'mA', 'OUT', 'OUT_AUTO', 'LOOP']
 
-export type RampMode = 'off' | 'slow' | 'fast' | 'step'
+export type RampMode = 'slow' | 'fast' | 'step'
 
+/** Physical keys on the 789 face. What they do depends on the knob position. */
 export type MeterKey =
-  | 'RANGE' | 'HOLD' | 'LOOP_POWER' | 'HART_250'
-  | 'ZERO' | 'HUNDRED' | 'SPAN_CHECK' | 'STEP' | 'RAMP'
-  | 'COARSE_UP' | 'COARSE_DN' | 'FINE_UP' | 'FINE_DN'
+  | 'HUNDRED' | 'MINMAX' | 'RANGE' | 'HOLD'
+  | 'ZERO' | 'BEEPER' | 'REL' | 'HZ'
+  | 'BACKLIGHT' | 'BLUE'
 
 export interface MeterState {
   mode: MeterMode
@@ -124,12 +130,18 @@ export interface MeterState {
   probeB: NodeId | null
   /** Snapshot shown while HOLD is active. */
   held: string | null
-  loopPower: boolean
+  /** 250 Ω HART resistor switched in (LOOP POWER position, blue key). */
   hart250: boolean
-  /** Output set-point for SOURCE / SIM, mA. */
+  /** Output set-point in the OUTPUT positions, mA. */
   outMa: number
+  /** Ramp type in the auto OUTPUT position (blue key cycles). */
   ramp: RampMode
   rampDir: 1 | -1
+  manualRange: boolean
+  /** REL Δ reference, in the display unit, or null. */
+  rel: number | null
+  minMax: 'off' | 'min' | 'max'
+  backlight: boolean
 }
 
 export interface HartScreen {

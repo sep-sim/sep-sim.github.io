@@ -84,19 +84,28 @@ export function leadsAcrossInput(s: SessionState): boolean {
   return isPair(probeA, probeB, 'AI_PLUS', 'AI_MINUS') || isPair(probeA, probeB, 'TB_1', 'TB_2')
 }
 
-/** 789 in mA + LOOP POWER across PT-101: transmitter lifted from the loop and powered by the meter. */
+/** 789 in the LOOP POWER position across PT-101: transmitter lifted from the loop and powered by the meter. */
 export function meterPoweringTransmitter(s: SessionState): boolean {
-  return s.meter.mode === 'mA' && s.meter.loopPower && leadsAcrossTransmitter(s)
+  return s.meter.mode === 'LOOP' && leadsAcrossTransmitter(s)
 }
 
-/** 789 in SIMULATE across PT-101's loop wires: the meter stands in for the transmitter. */
+export function meterInOutput(s: SessionState): boolean {
+  return s.meter.mode === 'OUT' || s.meter.mode === 'OUT_AUTO'
+}
+
+/** Loop supply present and fuse in, independent of test equipment. */
+function loopEnergized(s: SessionState): boolean {
+  return !hasFault(s, 'supply_dead') && !s.fusePulled && !hasFault(s, 'blown_fuse')
+}
+
+/** OUTPUT position across PT-101's loop wires with the loop live: the meter sees external voltage and simulates. */
 export function meterSimulating(s: SessionState): boolean {
-  return s.meter.mode === 'SIM' && leadsAcrossTransmitter(s)
+  return meterInOutput(s) && leadsAcrossTransmitter(s) && loopEnergized(s)
 }
 
-/** 789 in SOURCE across the RTU input (or TB pair): the meter drives the input directly. */
+/** OUTPUT position across a de-energized RTU input (or TB pair): no external voltage, so the meter sources. */
 export function meterSourcing(s: SessionState): boolean {
-  return s.meter.mode === 'SOURCE' && leadsAcrossInput(s)
+  return meterInOutput(s) && leadsAcrossInput(s) && !loopEnergized(s)
 }
 
 // ---- solver ------------------------------------------------------------------------------------
@@ -166,11 +175,11 @@ export function solveLoop(s: SessionState): LoopSolution {
   }
 
   const meterCurrent = powering ? demand : 0
-  const aiCurrent = sourcing && !energized ? s.meter.outMa : current
+  const aiCurrent = sourcing ? s.meter.outMa : current
 
   let hartBlocked: string | null = null
   if (!s.hart.connected) hartBlocked = 'not connected'
-  else if (simulating) hartBlocked = 'no HART device on the loop (789 in SIMULATE)'
+  else if (simulating) hartBlocked = 'no HART device on the loop (789 simulating in its place)'
   else if (reversed) hartBlocked = 'polarity'
   else if (powering && !s.meter.hart250) hartBlocked = 'loop resistance too low (enable 250 Ω on the 789)'
   else if (!powering && current < 3.5 && !s.hart.loopPower) hartBlocked = 'no loop current'
