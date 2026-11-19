@@ -1,17 +1,18 @@
 import { useEffect, useReducer, useState } from 'react'
-import type { ElecScenario, Scene } from '../types'
+import type { ElecScenario, Point, Scene } from '../types'
 import { createElecSession, ppeCheck, reduceElec } from '../engine'
 import { scoreElec, elecAnswer, diagnosisLabel } from '../score'
 import { REPAIRS } from '../types'
 import { MccScene } from './MccScene'
 import { DriveScene } from './DriveScene'
 import { MotorScene } from './MotorScene'
-import { Fluke1587 } from './Fluke1587'
+import { Fluke87V } from './Fluke87V'
+import { MeggerS1 } from './MeggerS1'
 import { ArcLabelModal } from './ArcLabel'
 import { Closeout, Keypad, Loto, PpeLocker, Prework } from './Panels'
 import { WorkLog } from '../../components/WorkLog'
 
-type Tab = 'prework' | 'ppe' | 'loto' | 'meter' | 'keypad' | 'closeout'
+type Tab = 'prework' | 'ppe' | 'loto' | 'dmm' | 'megger' | 'keypad' | 'closeout'
 
 export function ElecSim({ scenario, onExit }: { scenario: ElecScenario; onExit: () => void }) {
   const [state, dispatch] = useReducer(reduceElec, scenario, createElecSession)
@@ -58,9 +59,21 @@ export function ElecSim({ scenario, onExit }: { scenario: ElecScenario; onExit: 
   const scenes: { id: Scene; label: string }[] = [{ id: 'mcc', label: 'MCC room' }, { id: 'drive', label: 'VFD-101 cabinet' }, { id: 'motor', label: 'P-101 motor' }]
   const tabs: { id: Tab; label: string }[] = [
     { id: 'prework', label: 'Pre-work' }, { id: 'ppe', label: 'PPE' }, { id: 'loto', label: 'LOTO' },
-    { id: 'meter', label: 'Fluke 1587' }, { id: 'keypad', label: 'Keypad' }, { id: 'closeout', label: 'Close-out' },
+    { id: 'dmm', label: 'Fluke 87V' }, { id: 'megger', label: 'Megger' }, { id: 'keypad', label: 'Keypad' }, { id: 'closeout', label: 'Close-out' },
   ]
-  const onProbe = (p: Parameters<typeof dispatch>[0] extends infer A ? A extends { type: 'probe'; point: infer Pt } ? Pt : never : never) => dispatch({ type: 'probe', point: p })
+
+  /** Scene taps go to whichever instrument is in hand. The Megger takes − first, then +. */
+  const onProbe = (p: Point) => {
+    if (tab === 'megger') {
+      const m = state.megger
+      const lead = m.minus == null || m.plus != null ? 'minus' : 'plus'
+      if (lead === 'minus' && m.plus != null) dispatch({ type: 'meggerClear' })
+      dispatch({ type: 'meggerLead', lead, point: p })
+      return
+    }
+    if (tab !== 'dmm') setTab('dmm')
+    dispatch({ type: 'probe', point: p })
+  }
 
   return (
     <div className="sim">
@@ -98,7 +111,8 @@ export function ElecSim({ scenario, onExit }: { scenario: ElecScenario; onExit: 
               {tab === 'prework' && <Prework state={state} dispatch={dispatch} />}
               {tab === 'ppe' && <PpeLocker state={state} dispatch={dispatch} />}
               {tab === 'loto' && <Loto state={state} dispatch={dispatch} />}
-              {tab === 'meter' && <Fluke1587 state={state} dispatch={dispatch} />}
+              {tab === 'dmm' && <Fluke87V state={state} dispatch={dispatch} />}
+              {tab === 'megger' && <MeggerS1 state={state} dispatch={dispatch} />}
               {tab === 'keypad' && <Keypad state={state} dispatch={dispatch} />}
               {tab === 'closeout' && <Closeout state={state} dispatch={dispatch} />}
             </div>

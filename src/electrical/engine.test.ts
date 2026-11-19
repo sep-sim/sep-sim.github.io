@@ -13,7 +13,12 @@ const FULL_PPE: Action[] = (['hardhat', 'glasses', 'hearing', 'ar12', 'faceshiel
 const prework = (): Action[] => [{ type: 'readLabel' }, ...CHECKLIST.map((c) => ({ type: 'checklist', id: c.id }) as Action)]
 const vac = (a: Point, b: Point): Action[] => [{ type: 'meterMode', mode: 'VAC' }, { type: 'probe', point: a }, { type: 'probe', point: b }]
 const vdc = (a: Point, b: Point): Action[] => [{ type: 'meterMode', mode: 'VDC' }, { type: 'probe', point: a }, { type: 'probe', point: b }]
-const meg = (a: Point, b: Point): Action[] => [{ type: 'meterMode', mode: 'INS' }, { type: 'probe', point: a }, { type: 'probe', point: b }, { type: 'insTest' }]
+/** Megger IR spot test: − on the conductor, + to earth, read at one minute. */
+const meg = (a: Point, b: Point): Action[] => [
+  { type: 'meggerMode', mode: 'IR' }, { type: 'meggerLead', lead: 'minus', point: a }, { type: 'meggerLead', lead: 'plus', point: b },
+  { type: 'meggerTest' }, { type: 'wait', minutes: 1 }, { type: 'meggerTest' },
+]
+const ir = (s: ElecState, a: Point, b: Point) => insulationTest(s, a, b)
 
 /** The textbook path to an electrically safe work condition with the leads lifted at 1M. */
 function toEswc(s: ElecState): ElecState {
@@ -115,11 +120,13 @@ describe('LOTO and verification', () => {
   })
 })
 
-describe('insulation testing', () => {
+describe('Megger S1-568 insulation testing', () => {
   it('is inhibited on a live circuit', () => {
     const s = run(createElecSession(byId('term-fault')), { type: 'goto', scene: 'drive' }, ...meg('L1', 'GND'))
     expect(s.insTests).toHaveLength(0)
-    expect(s.log.at(-1)?.text).toContain('inhibited')
+    expect(s.megger.testing).toBe(false)
+    expect(s.megger.inhibit).toContain('⚡')
+    expect(s.log.some((l) => l.text.includes('inhibited'))).toBe(true)
   })
 
   it('megging into the drive output with 1M closed destroys the IGBTs', () => {
@@ -131,51 +138,79 @@ describe('insulation testing', () => {
 
   it('with the wye point intact a winding fault shows on all three lifted leads', () => {
     const s = toEswc(createElecSession(byId('motor-winding')))
-    for (const p of ['C_T1', 'C_T2', 'C_T3'] as const) {
-      const r = insulationTest({ ...s, meter: { ...s.meter, mode: 'INS', probeA: p, probeB: 'GND' } })
-      expect(r.reading).toBe('0.30 MΩ')
-    }
+    for (const p of ['C_T1', 'C_T2', 'C_T3'] as const) expect(ir(s, p, 'GND').reading).toBe('0.30 MΩ')
     // phase to phase through the windings is continuity, not insulation
-    const pp = insulationTest({ ...s, meter: { ...s.meter, mode: 'INS', probeA: 'C_T1', probeB: 'C_T2' } })
-    expect(pp.reading).toBe('0.00 MΩ')
+    expect(ir(s, 'C_T1', 'C_T2').reading).toBe('0.00 MΩ')
   })
 
   it('unbolting the feeders separates motor from cable; opening the wye point finds the winding', () => {
     const s0 = run(toEswc(createElecSession(byId('motor-winding'))), { type: 'goto', scene: 'motor' }, { type: 'cover', off: true }, { type: 'inspectBox' }, { type: 'unboltFeeders', unbolted: true })
     expect(s0.violations).toEqual([])
-    const cable = insulationTest({ ...s0, meter: { ...s0.meter, mode: 'INS', probeA: 'CBL_2', probeB: 'FRAME' } })
-    expect(cable.reading).toContain('OL')
-    const motorAll = insulationTest({ ...s0, meter: { ...s0.meter, mode: 'INS', probeA: 'T1', probeB: 'FRAME' } })
-    expect(motorAll.reading).toBe('0.30 MΩ')
+    expect(ir(s0, 'CBL_2', 'FRAME').reading).toContain('OL')
+    expect(ir(s0, 'T1', 'FRAME').reading).toBe('0.30 MΩ')
     const s1 = run(s0, { type: 'wye', open: true })
-    expect(insulationTest({ ...s1, meter: { ...s1.meter, mode: 'INS', probeA: 'T1', probeB: 'FRAME' } }).reading).toBe('140 MΩ')
-    expect(insulationTest({ ...s1, meter: { ...s1.meter, mode: 'INS', probeA: 'T2', probeB: 'FRAME' } }).reading).toBe('0.30 MΩ')
-    expect(insulationTest({ ...s1, meter: { ...s1.meter, mode: 'INS', probeA: 'T5', probeB: 'FRAME' } }).reading).toBe('0.30 MΩ')
+    expect(ir(s1, 'T1', 'FRAME').reading).toBe('140 MΩ')
+    expect(ir(s1, 'T2', 'FRAME').reading).toBe('0.30 MΩ')
+    expect(ir(s1, 'T5', 'FRAME').reading).toBe('0.30 MΩ')
     // winding to winding with the wye open is a real insulation reading
-    expect(insulationTest({ ...s1, meter: { ...s1.meter, mode: 'INS', probeA: 'T1', probeB: 'T3' } }).reading).toBe('300 MΩ')
+    expect(ir(s1, 'T1', 'T3').reading).toBe('300 MΩ')
   })
 
   it('termination fault: low at the cable lug until the lug is supported clear of the box', () => {
     const s0 = run(toEswc(createElecSession(byId('term-fault'))), { type: 'goto', scene: 'motor' }, { type: 'cover', off: true }, { type: 'inspectBox' }, { type: 'unboltFeeders', unbolted: true })
     expect(s0.log.find((l) => l.kind === 'inspect' && l.text.includes('arc mark'))).toBeTruthy()
-    expect(insulationTest({ ...s0, meter: { ...s0.meter, mode: 'INS', probeA: 'CBL_2', probeB: 'FRAME' } }).reading).toBe('0.05 MΩ')
+    expect(ir(s0, 'CBL_2', 'FRAME').reading).toBe('0.05 MΩ')
     // wye point intact: one bushing to frame reads all three windings in parallel
-    expect(insulationTest({ ...s0, meter: { ...s0.meter, mode: 'INS', probeA: 'T2', probeB: 'FRAME' } }).reading).toBe('47 MΩ')
+    expect(ir(s0, 'T2', 'FRAME').reading).toBe('47 MΩ')
     const s1 = run(s0, { type: 'clearLugs' })
-    expect(insulationTest({ ...s1, meter: { ...s1.meter, mode: 'INS', probeA: 'CBL_2', probeB: 'FRAME' } }).reading).toContain('OL')
+    expect(ir(s1, 'CBL_2', 'FRAME').reading).toContain('OL')
   })
 
   it('cable fault: cable low from both ends, motor good', () => {
     const s0 = run(toEswc(createElecSession(byId('cable-fault'))), { type: 'goto', scene: 'motor' }, { type: 'cover', off: true }, { type: 'unboltFeeders', unbolted: true }, { type: 'clearLugs' })
-    expect(insulationTest({ ...s0, meter: { ...s0.meter, mode: 'INS', probeA: 'CBL_2', probeB: 'FRAME' } }).reading).toBe('0.02 MΩ')
-    expect(insulationTest({ ...s0, meter: { ...s0.meter, mode: 'INS', probeA: 'T2', probeB: 'FRAME' } }).reading).toBe('47 MΩ')
+    expect(ir(s0, 'CBL_2', 'FRAME').reading).toBe('0.02 MΩ')
+    expect(ir(s0, 'T2', 'FRAME').reading).toBe('47 MΩ')
     const back = run(s0, { type: 'goto', scene: 'drive' })
-    expect(insulationTest({ ...back, meter: { ...back.meter, mode: 'INS', probeA: 'C_T2', probeB: 'GND' } }).reading).toBe('0.02 MΩ')
-    expect(insulationTest({ ...back, meter: { ...back.meter, mode: 'INS', probeA: 'C_T1', probeB: 'GND' } }).reading).toContain('OL')
+    expect(ir(back, 'C_T2', 'GND').reading).toBe('0.02 MΩ')
+    expect(ir(back, 'C_T1', 'GND').reading).toContain('OL')
+  })
+
+  it('a timed IR spot test records the one-minute value in the log and the test record', () => {
+    const s = run(toEswc(createElecSession(byId('motor-winding'))), ...meg('C_T2', 'GND'))
+    expect(s.insTests).toHaveLength(1)
+    expect(s.insTests[0].reading).toBe('0.30 MΩ')
+    expect(s.insTests[0].mode).toBe('IR')
+    expect(s.megger.result?.seconds).toBe(60)
+    expect(s.log.some((l) => l.text.includes('discharging'))).toBe(true)
+  })
+
+  it('DAR and PI: good insulation climbs, a faulted winding stays flat', () => {
+    const good = run(toEswc(createElecSession(byId('term-fault'))), { type: 'goto', scene: 'motor' }, { type: 'cover', off: true }, { type: 'unboltFeeders', unbolted: true }, { type: 'clearLugs' },
+      { type: 'meggerMode', mode: 'DAR' }, { type: 'meggerLead', lead: 'minus', point: 'T1' }, { type: 'meggerLead', lead: 'plus', point: 'FRAME' }, { type: 'meggerTest' })
+    expect(good.megger.testing).toBe(true)
+    const done = run(good, { type: 'wait', minutes: 1 })
+    expect(done.megger.testing).toBe(false)
+    expect(done.megger.result?.dar).toBeCloseTo(1.29, 1)
+    const pi = run(done, { type: 'meggerMode', mode: 'PI' }, { type: 'meggerTest' }, { type: 'wait', minutes: 10 })
+    expect(pi.megger.result?.pi).toBeCloseTo(1.98, 1)
+    expect(pi.megger.result?.r).toBeGreaterThan(80)
+    const bad = run(toEswc(createElecSession(byId('motor-winding'))), { type: 'goto', scene: 'motor' }, { type: 'cover', off: true }, { type: 'unboltFeeders', unbolted: true },
+      { type: 'meggerMode', mode: 'DAR' }, { type: 'meggerLead', lead: 'minus', point: 'T2' }, { type: 'meggerLead', lead: 'plus', point: 'FRAME' }, { type: 'meggerTest' }, { type: 'wait', minutes: 1 })
+    expect(bad.megger.result?.dar).toBe(1)
+    expect(bad.megger.result?.reading).toBe('0.30 MΩ')
+  })
+
+  it('2.5 kV on a 460 V winding is flagged; reversed leads get a note, not a penalty', () => {
+    const s = run(toEswc(createElecSession(byId('term-fault'))), { type: 'meggerVolts', volts: 2500 }, ...meg('C_T1', 'GND'))
+    expect(s.violations.map((v) => v.id)).toContain('meg_high_volts')
+    const rev = run(toEswc(createElecSession(byId('term-fault'))), ...meg('GND', 'C_T1'))
+    expect(rev.violations.map((v) => v.id)).not.toContain('meg_polarity')
+    expect(rev.log.some((l) => l.text.includes('leads reversed'))).toBe(true)
+    expect(rev.insTests).toHaveLength(1)
   })
 
   it('250 V is flagged as too low for a 460 V motor', () => {
-    const s = run(toEswc(createElecSession(byId('term-fault'))), { type: 'meterVolts', volts: 250 }, ...meg('C_T2', 'GND'))
+    const s = run(toEswc(createElecSession(byId('term-fault'))), { type: 'meggerVolts', volts: 250 }, ...meg('C_T2', 'GND'))
     expect(s.violations.map((v) => v.id)).toContain('meg_low_volts')
   })
 })

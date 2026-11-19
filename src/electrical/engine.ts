@@ -2,7 +2,7 @@
 // 6-lead motor circuit, and every technician action with its NFPA 70E consequences.
 
 import type {
-  DeadTest, DiagnosisId, ElecScenario, ElecState, InsVolts, LockTarget, LogKind, MeterMode, Point, PpeId, RepairId, Scene,
+  DeadTest, DiagnosisId, ElecScenario, ElecState, LockTarget, LogKind, MeggerLeadId, MeggerMode, MeggerResult, MeggerVolts, MeterMode, Point, PpeId, RepairId, Scene,
 } from './types'
 import { CHECKLIST, DIAGNOSES, POINT_LABEL, POINT_SCENE, PPE_ITEMS, REPAIRS } from './types'
 
@@ -23,10 +23,13 @@ export type Action =
   | { type: 'keypad'; key: 'RUN' | 'STOP' | 'RESET' }
   | { type: 'door'; open: boolean }
   | { type: 'meterMode'; mode: MeterMode }
-  | { type: 'meterVolts'; volts: InsVolts }
   | { type: 'probe'; point: Point }
   | { type: 'meterClear' }
-  | { type: 'insTest' }
+  | { type: 'meggerMode'; mode: MeggerMode }
+  | { type: 'meggerVolts'; volts: MeggerVolts }
+  | { type: 'meggerLead'; lead: MeggerLeadId; point: Point }
+  | { type: 'meggerClear' }
+  | { type: 'meggerTest' }
   | { type: 'liftLeads'; lifted: boolean }
   | { type: 'cover'; off: boolean }
   | { type: 'inspectBox' }
@@ -53,6 +56,8 @@ export const PENALTY: Record<string, { points: number; label: string }> = {
   meg_into_drive: { points: -30, label: 'Insulation test applied with the drive output connected: IGBTs destroyed' },
   meg_through_contactor: { points: -10, label: 'Insulation test through an open contactor instead of lifted leads' },
   meg_low_volts: { points: -5, label: 'Insulation test voltage too low for a 460 V motor (use 500 V)' },
+  meg_high_volts: { points: -5, label: 'Insulation test voltage too high for a 460 V winding (2.5 kV and up overstresses it)' },
+  meg_polarity: { points: 0, label: 'Megger leads reversed: − lead belongs on the conductor, + to earth' },
   meg_not_verified: { points: -10, label: 'Insulation test on a circuit not verified de-energized' },
   locks_early: { points: -10, label: 'Lockout removed before the equipment was restored and clear' },
   ctrl_live_touch: { points: -10, label: 'Control circuit left energized while working in the cabinet' },
@@ -97,7 +102,8 @@ export function createElecSession(scenario: ElecScenario): ElecState {
     drive: { faulted: true, running: false, damaged: false, display: scenario.drive.faultCode },
     leadsLifted: false,
     jbox: { coverOff: false, feedersUnbolted: false, lugsCleared: false, wyeOpen: false, inspected: false },
-    meter: { mode: 'OFF', insVolts: 500, probeA: null, probeB: null, lastTest: null },
+    meter: { mode: 'OFF', probeA: null, probeB: null },
+    megger: { mode: 'OFF', volts: 500, minus: null, plus: null, testing: false, tStart: null, result: null, inhibit: null },
     proofs: [],
     deadTests: [],
     insTests: [],
@@ -298,7 +304,7 @@ function groupToGround(s: ElecState, g: Set<NodeId>): number {
   return parallel([...g].map((n) => nodeToGround(s, n)))
 }
 
-export function fmtMohm(r: number, volts: InsVolts): string {
+export function fmtMohm(r: number, volts: MeggerVolts): string {
   const cap = volts >= 500 ? 2000 : volts >= 250 ? 1000 : 200
   if (!Number.isFinite(r) || r >= cap) return `OL (> ${cap >= 1000 ? `${cap / 1000}.0 GΩ` : `${cap} MΩ`})`
   if (r >= 1000) return `${(r / 1000).toFixed(2)} GΩ`
@@ -309,24 +315,30 @@ export function fmtMohm(r: number, volts: InsVolts): string {
 
 export interface InsResult {
   ok: boolean
+  /** resistance in MΩ at the 60 s mark; Infinity for over range */
+  r: number
   reading: string
   text: string
   warnId?: string
-  warnText?: string
   damage?: boolean
+  polarityNote?: boolean
 }
 
-export function insulationTest(s: ElecState): InsResult {
-  const m = s.meter
-  const a = m.probeA
-  const b = m.probeB
-  if (a == null || b == null) return { ok: false, reading: '----', text: 'Leads not placed.' }
-  if (POINT_SCENE[a] !== POINT_SCENE[b]) return { ok: false, reading: '----', text: 'Leads are in two different places.' }
-  if (isLive(s, a, b)) return { ok: false, reading: '⚡ >30 V', text: 'Voltage detected between the leads. Test inhibited.' }
+/** Static insulation result for the Megger's leads: − on the conductor under test, + to earth. */
+export function insulationTest(s: ElecState, minusPt: Point | null = s.megger.minus, plusPt: Point | null = s.megger.plus, volts: MeggerVolts = s.megger.volts): InsResult {
+  const a = minusPt
+  const b = plusPt
+  if (a == null || b == null) return { ok: false, r: OL, reading: '----', text: 'Leads not connected.' }
+  if (POINT_SCENE[a] !== POINT_SCENE[b]) return { ok: false, r: OL, reading: '----', text: 'Leads are in two different places.' }
+  if (isLive(s, a, b)) {
+    const v = voltageBetween(s, a, b)
+    const shown = v.ac > 30 ? `${v.ac.toFixed(0)} V AC` : `${Math.abs(v.dc).toFixed(0)} V DC`
+    return { ok: false, r: OL, reading: `⚡ ${shown}`, text: `${shown} present between the leads. Test inhibited.` }
+  }
 
   const driveTerminals: Point[] = ['L1', 'L2', 'L3', 'DC_P', 'DC_N', 'U', 'V', 'W']
   if (driveTerminals.includes(a) || driveTerminals.includes(b)) {
-    return { ok: true, reading: '0.6 MΩ', text: 'Test voltage applied straight into the drive terminals.', warnId: 'meg_into_drive', damage: true }
+    return { ok: true, r: 0.6, reading: fmtMohm(0.6, volts), text: 'Test voltage applied straight into the drive terminals.', warnId: 'meg_into_drive', damage: true }
   }
 
   const ground: Point[] = ['GND', 'FRAME', 'RECEPT_G']
@@ -334,10 +346,10 @@ export function insulationTest(s: ElecState): InsResult {
   const nb = pointNode(b)
   const aG = ground.includes(a)
   const bG = ground.includes(b)
-  if ((na == null && !aG) || (nb == null && !bG)) return { ok: false, reading: '----', text: 'Nothing to test between these points.' }
-  if (aG && bG) return { ok: true, reading: '0.00 MΩ', text: 'Ground to ground.' }
+  if ((na == null && !aG) || (nb == null && !bG)) return { ok: false, r: OL, reading: '----', text: 'Nothing to test between these points.' }
+  if (aG && bG) return { ok: true, r: 0, reading: '0.00 MΩ', text: 'Earth to earth.' }
+  const polarityNote = aG && !bG
 
-  // Which node groups are under test, and whether either is still tied to the drive output.
   const groups = [na, nb].filter((n): n is NodeId => n != null).map((n) => group(s, n))
   const touchesCable = groups.some((g) => [...g].some((n) => n.startsWith('cable')))
   let warnId: string | undefined
@@ -357,7 +369,7 @@ export function insulationTest(s: ElecState): InsResult {
         : s.jbox.wyeOpen && !s.jbox.feedersUnbolted
           ? 'Phase to phase through the bolted feeder and winding: continuity.'
           : 'Phase to phase reads through the windings and the wye point: continuity, not insulation. Open the wye point to test winding to winding.'
-      return { ok: true, reading: '0.00 MΩ', text, warnId, damage }
+      return { ok: true, r: 0, reading: '0.00 MΩ', text, warnId, damage }
     }
     r = groupToGround(s, ga) + groupToGround(s, group(s, nb))
   } else {
@@ -365,8 +377,36 @@ export function insulationTest(s: ElecState): InsResult {
     r = groupToGround(s, group(s, n))
   }
   if (s.drive.damaged && touchesCable && !s.leadsLifted) r = Math.min(r, 0.6)
-  const reading = fmtMohm(r, m.insVolts)
-  return { ok: true, reading, text: `${POINT_LABEL[a]} → ${POINT_LABEL[b]} at ${m.insVolts} V: ${reading}`, warnId, damage }
+  const reading = fmtMohm(r, volts)
+  return { ok: true, r, reading, text: `${POINT_LABEL[a]} → ${POINT_LABEL[b]}: ${reading}`, warnId, damage, polarityNote }
+}
+
+/**
+ * Dielectric absorption: sound insulation keeps climbing after the voltage is applied, contaminated or faulted
+ * insulation does not. `r60` is the one-minute value. Shape gives DAR ≈ 1.29 and PI ≈ 2.0 for good windings.
+ */
+export function absorption(r60: number, seconds: number): number {
+  if (!Number.isFinite(r60)) return OL
+  if (r60 < 1) return r60
+  const k = (0.25 + 0.75 * (1 - Math.exp(-seconds / 150))) / 0.497
+  return r60 * k
+}
+
+export function leakageNa(r: number, volts: number): number {
+  if (!Number.isFinite(r) || r <= 0) return 0
+  return (volts / (r * 1e6)) * 1e9
+}
+
+export const MEGGER_AUTO_STOP: Partial<Record<MeggerMode, number>> = { IRT: 60, DAR: 60, PI: 600 }
+
+/** Live resistance the Megger shows `seconds` into the running test. */
+export function meggerLive(s: ElecState): { r: number; seconds: number; reading: string } | null {
+  const m = s.megger
+  if (!m.testing || m.tStart == null) return null
+  const base = insulationTest(s)
+  const seconds = s.t - m.tStart
+  const r = absorption(base.r, seconds)
+  return { r, seconds, reading: fmtMohm(r, m.volts) }
 }
 
 // ---- inspection text ---------------------------------------------------------------------------------
@@ -404,8 +444,7 @@ function meterReadingText(s: ElecState): string | null {
   const v = voltageBetween(s, m.probeA, m.probeB)
   if (m.mode === 'VAC') return `${v.ac.toFixed(1)} V AC`
   if (m.mode === 'VDC') return `${v.dc.toFixed(1)} V DC`
-  if (m.mode === 'OHM') return isLive(s, m.probeA, m.probeB) ? 'OL ⚠ live' : 'OL'
-  return m.lastTest ?? '----'
+  return isLive(s, m.probeA, m.probeB) ? 'OL ⚠ live' : 'OL'
 }
 
 function placeLead(s: ElecState, p: Point): ElecState {
@@ -413,14 +452,13 @@ function placeLead(s: ElecState, p: Point): ElecState {
   if (m.mode === 'OFF') return log(s, 'warn', 'Meter is off.')
   if (POINT_SCENE[p] !== s.scene) return s
   if (m.probeA == null || m.probeB != null) {
-    return { ...s, meter: { ...m, probeA: p, probeB: null, lastTest: null } }
+    return { ...s, meter: { ...m, probeA: p, probeB: null } }
   }
   const a = m.probeA
   const b = p
-  let next: ElecState = { ...s, meter: { ...m, probeB: b, lastTest: null } }
-  if (m.mode === 'INS') return next
+  let next: ElecState = { ...s, meter: { ...m, probeB: b } }
   if (m.mode === 'OHM') {
-    return log(next, 'measure', `1587 Ω ${POINT_LABEL[a]} → ${POINT_LABEL[b]}: ${isLive(s, a, b) ? 'OL (live circuit!)' : 'OL'}`)
+    return log(next, 'measure', `87V Ω ${POINT_LABEL[a]} → ${POINT_LABEL[b]}: ${isLive(s, a, b) ? 'OL (live circuit!)' : 'OL'}`)
   }
   const v = voltageBetween(s, a, b)
   const reading = m.mode === 'VAC' ? `${v.ac.toFixed(1)} V AC` : `${v.dc.toFixed(1)} V DC`
@@ -430,9 +468,9 @@ function placeLead(s: ElecState, p: Point): ElecState {
   if (recept(a) && recept(b)) {
     if (m.mode === 'VAC' && v.ac > 100) {
       next = { ...next, proofs: [...next.proofs, next.t] }
-      return log(next, 'measure', `1587 proved on known live source: ${POINT_LABEL[a]} → ${POINT_LABEL[b]} ${reading}`)
+      return log(next, 'measure', `87V proved on known live source: ${POINT_LABEL[a]} → ${POINT_LABEL[b]} ${reading}`)
     }
-    return log(next, 'measure', `1587 ${m.mode === 'VAC' ? 'V AC' : 'V DC'} ${POINT_LABEL[a]} → ${POINT_LABEL[b]}: ${reading}`)
+    return log(next, 'measure', `87V ${m.mode === 'VAC' ? 'V AC' : 'V DC'} ${POINT_LABEL[a]} → ${POINT_LABEL[b]}: ${reading}`)
   }
 
   const scene = POINT_SCENE[a]
@@ -445,26 +483,61 @@ function placeLead(s: ElecState, p: Point): ElecState {
     const d: DeadTest = { a, b, mode: m.mode, t: next.t }
     next = { ...next, deadTests: [...next.deadTests, d] }
   }
-  return log(next, 'measure', `1587 ${m.mode === 'VAC' ? 'V AC' : 'V DC'} ${POINT_LABEL[a]} → ${POINT_LABEL[b]}: ${reading}${live ? '  ⚡ LIVE' : ''}`)
+  return log(next, 'measure', `87V ${m.mode === 'VAC' ? 'V AC' : 'V DC'} ${POINT_LABEL[a]} → ${POINT_LABEL[b]}: ${reading}${live ? '  ⚡ LIVE' : ''}`)
 }
 
-function runInsTest(s: ElecState): ElecState {
-  if (s.meter.mode !== 'INS') return log(s, 'warn', 'Turn the 1587 to the insulation position first.')
-  const r = insulationTest(s)
-  let next: ElecState = { ...s, meter: { ...s.meter, lastTest: r.reading } }
-  if (!r.ok) return log(next, 'warn', `1587 insulation: ${r.text}`)
-  next = { ...next, tests: next.tests + 1 }
-  const a = next.meter.probeA!
-  const b = next.meter.probeB!
-  next = { ...next, insTests: [...next.insTests, { a, b, volts: next.meter.insVolts, reading: r.reading, t: next.t }] }
-  if (!lockedOut(s) || !verifiedDead(s)) next = violate(next, 'meg_not_verified')
-  if (next.meter.insVolts < 500) next = violate(next, 'meg_low_volts')
-  next = log(next, 'measure', `1587 insulation ${next.meter.insVolts} V: ${r.text}`)
-  if (r.warnId) {
-    next = violate(next, r.warnId)
-    if (r.damage) next = { ...next, drive: { ...next.drive, damaged: true } }
+function meggerStop(s: ElecState): ElecState {
+  const m = s.megger
+  if (!m.testing || m.tStart == null) return s
+  const base = insulationTest(s)
+  const seconds = s.t - m.tStart
+  const r = absorption(base.r, seconds)
+  const result: MeggerResult = { mode: m.mode, volts: m.volts, seconds, r, reading: fmtMohm(r, m.volts), leakNa: leakageNa(r, m.volts) }
+  if ((m.mode === 'DAR' || m.mode === 'IR' || m.mode === 'IRT') && seconds >= 60) {
+    const r30 = absorption(base.r, 30)
+    const r60 = absorption(base.r, 60)
+    if (Number.isFinite(r60) && r30 > 0) result.dar = Math.round((r60 / r30) * 100) / 100
   }
-  return log(next, 'info', '1587 discharging the circuit under test.')
+  if (m.mode === 'PI' && seconds >= 600) {
+    const r60 = absorption(base.r, 60)
+    const r600 = absorption(base.r, 600)
+    if (Number.isFinite(r600) && r60 > 0) result.pi = Math.round((r600 / r60) * 100) / 100
+  }
+  let next: ElecState = { ...s, megger: { ...m, testing: false, tStart: null, result } }
+  next = { ...next, insTests: [...next.insTests, { a: m.minus!, b: m.plus!, volts: m.volts, reading: result.reading, t: next.t, mode: m.mode, dar: result.dar, pi: result.pi }] }
+  const extras = [result.dar != null ? `DAR ${result.dar.toFixed(2)}` : '', result.pi != null ? `PI ${result.pi.toFixed(2)}` : ''].filter(Boolean).join(', ')
+  const kv = m.volts >= 1000 ? `${m.volts / 1000} kV` : `${m.volts} V`
+  next = log(next, 'measure', `Megger ${m.mode === 'IRT' ? 'IR(t)' : m.mode} ${kv} ${seconds}s: ${POINT_LABEL[m.minus!]} → ${POINT_LABEL[m.plus!]} ${result.reading}${extras ? ` (${extras})` : ''}`)
+  return log(next, 'info', `Megger discharging the circuit under test, ${Math.round(m.volts * 0.9)} V falling to 0.`)
+}
+
+function meggerStart(s: ElecState): ElecState {
+  const m = s.megger
+  if (m.mode === 'OFF') return log(s, 'warn', 'Megger is off.')
+  if (m.mode === 'DD' || m.mode === 'SV' || m.mode === 'RAMP') return log(s, 'warn', `Megger ${m.mode} test is not modeled in this scenario. Use IR, IR(t), DAR or PI.`)
+  const base = insulationTest(s)
+  if (!base.ok) return log({ ...s, megger: { ...m, inhibit: base.reading, result: null } }, 'warn', `Megger: ${base.text}`)
+  let next: ElecState = { ...s, megger: { ...m, testing: true, tStart: s.t, result: null, inhibit: null }, tests: s.tests + 1 }
+  if (!lockedOut(s) || !verifiedDead(s)) next = violate(next, 'meg_not_verified')
+  if (m.volts < 500) next = violate(next, 'meg_low_volts')
+  if (m.volts >= 2500) next = violate(next, 'meg_high_volts')
+  if (base.polarityNote) next = log(next, 'warn', PENALTY.meg_polarity.label)
+  if (base.r === 0) next = log(next, 'info', `Megger: ${base.text}`)
+  if (base.warnId) {
+    next = violate(next, base.warnId)
+    if (base.damage) next = { ...next, drive: { ...next.drive, damaged: true } }
+  }
+  const kv = m.volts >= 1000 ? `${m.volts / 1000} kV` : `${m.volts} V`
+  return log(next, 'action', `Megger ${m.mode === 'IRT' ? 'IR(t)' : m.mode} test started at ${kv}: ${POINT_LABEL[m.minus!]} (−) → ${POINT_LABEL[m.plus!]} (+).`)
+}
+
+/** Advance a running test; auto-stop timed modes. */
+function meggerTick(s: ElecState): ElecState {
+  const m = s.megger
+  if (!m.testing || m.tStart == null) return s
+  const stopAt = MEGGER_AUTO_STOP[m.mode]
+  if (stopAt != null && s.t - m.tStart >= stopAt) return meggerStop(s)
+  return s
 }
 
 function requireHandsOn(s: ElecState, where: 'drive' | 'motor'): ElecState {
@@ -494,9 +567,9 @@ export function reduceElec(s: ElecState, a: Action): ElecState {
   if (s.finished && a.type !== 'tick') return s
   switch (a.type) {
     case 'tick':
-      return { ...s, t: s.t + 1 }
+      return meggerTick({ ...s, t: s.t + 1 })
     case 'wait':
-      return log({ ...s, t: s.t + a.minutes * 60 }, 'info', `Waited ${a.minutes} minutes. DC bus now ${busVolts({ ...s, t: s.t + a.minutes * 60 }).toFixed(0)} V, CHARGE lamp ${chargeLampOn({ ...s, t: s.t + a.minutes * 60 }) ? 'lit' : 'off'}.`)
+      return log(meggerTick({ ...s, t: s.t + a.minutes * 60 }), 'info', `Waited ${a.minutes} minutes. DC bus now ${busVolts({ ...s, t: s.t + a.minutes * 60 }).toFixed(0)} V, CHARGE lamp ${chargeLampOn({ ...s, t: s.t + a.minutes * 60 }) ? 'lit' : 'off'}.`)
     case 'checklist': {
       const next = { ...s, checklist: { ...s.checklist, [a.id]: !s.checklist[a.id] } }
       const item = CHECKLIST.find((c) => c.id === a.id)
@@ -505,7 +578,8 @@ export function reduceElec(s: ElecState, a: Action): ElecState {
     case 'goto': {
       if (a.scene === s.scene) return s
       const names: Record<Scene, string> = { mcc: 'the MCC room', drive: 'the open VFD-101 cabinet', motor: 'P-101 motor' }
-      const next = { ...s, scene: a.scene, meter: { ...s.meter, probeA: null, probeB: null, lastTest: null } }
+      const stopped = s.megger.testing ? meggerStop(s) : s
+      const next = { ...stopped, scene: a.scene, meter: { ...stopped.meter, probeA: null, probeB: null }, megger: { ...stopped.megger, minus: null, plus: null, result: null, inhibit: null } }
       return log(next, 'info', `Walked to ${names[a.scene]}.`)
     }
     case 'readLabel': {
@@ -596,20 +670,36 @@ export function reduceElec(s: ElecState, a: Action): ElecState {
       return log(next, 'action', a.open ? `Opened VFD-101 cabinet door. CHARGE lamp ${chargeLampOn(s) ? 'LIT' : 'off'}.` : 'Closed VFD-101 cabinet door.')
     }
     case 'meterMode':
-      return { ...s, meter: { ...s.meter, mode: a.mode, probeA: null, probeB: null, lastTest: null } }
-    case 'meterVolts':
-      return { ...s, meter: { ...s.meter, insVolts: a.volts, lastTest: null } }
+      return { ...s, meter: { ...s.meter, mode: a.mode, probeA: null, probeB: null } }
     case 'probe':
       return placeLead(s, a.point)
     case 'meterClear':
-      return { ...s, meter: { ...s.meter, probeA: null, probeB: null, lastTest: null } }
-    case 'insTest':
-      return runInsTest(s)
+      return { ...s, meter: { ...s.meter, probeA: null, probeB: null } }
+    case 'meggerMode': {
+      const stopped = s.megger.testing ? meggerStop(s) : s
+      return { ...stopped, megger: { ...stopped.megger, mode: a.mode, result: null, inhibit: null } }
+    }
+    case 'meggerVolts': {
+      if (s.megger.testing) return log(s, 'warn', 'Stop the test before changing the voltage.')
+      return { ...s, megger: { ...s.megger, volts: a.volts, result: null, inhibit: null } }
+    }
+    case 'meggerLead': {
+      if (POINT_SCENE[a.point] !== s.scene) return s
+      if (s.megger.mode === 'OFF') return log(s, 'warn', 'Megger is off.')
+      const stopped = s.megger.testing ? meggerStop(s) : s
+      return { ...stopped, megger: { ...stopped.megger, [a.lead]: a.point, result: null, inhibit: null } }
+    }
+    case 'meggerClear': {
+      const stopped = s.megger.testing ? meggerStop(s) : s
+      return { ...stopped, megger: { ...stopped.megger, minus: null, plus: null, result: null, inhibit: null } }
+    }
+    case 'meggerTest':
+      return s.megger.testing ? meggerStop(s) : meggerStart(s)
     case 'liftLeads': {
       if (a.lifted === s.leadsLifted) return s
       if (!s.doorOpen) return log(s, 'warn', 'Open the cabinet door first.')
       let next = a.lifted ? requireHandsOn(s, 'drive') : s
-      next = { ...next, leadsLifted: a.lifted, meter: { ...next.meter, probeA: null, probeB: null, lastTest: null } }
+      next = { ...next, leadsLifted: a.lifted, meter: { ...next.meter, probeA: null, probeB: null }, megger: { ...next.megger, minus: null, plus: null, result: null } }
       return log(next, 'action', a.lifted ? 'Lifted motor leads T1, T2, T3 from the 1M contactor load side, taped and tagged. Motor circuit isolated from the drive.' : 'Re-landed motor leads T1, T2, T3 on 1M, torqued.')
     }
     case 'cover': {
@@ -628,7 +718,7 @@ export function reduceElec(s: ElecState, a: Action): ElecState {
       if (a.unbolted === s.jbox.feedersUnbolted) return s
       if (!s.jbox.coverOff) return log(s, 'warn', 'Cover is on.')
       let next = a.unbolted ? requireHandsOn(s, 'motor') : s
-      next = { ...next, jbox: { ...next.jbox, feedersUnbolted: a.unbolted, lugsCleared: a.unbolted ? next.jbox.lugsCleared : false }, meter: { ...next.meter, probeA: null, probeB: null, lastTest: null } }
+      next = { ...next, jbox: { ...next.jbox, feedersUnbolted: a.unbolted, lugsCleared: a.unbolted ? next.jbox.lugsCleared : false }, meter: { ...next.meter, probeA: null, probeB: null }, megger: { ...next.megger, minus: null, plus: null, result: null } }
       return log(next, 'action', a.unbolted ? 'Unbolted feeder lugs L1, L2, L3 from bushings T1, T2, T3. Motor and cable separated.' : 'Feeder lugs bolted back on T1, T2, T3 and torqued.')
     }
     case 'clearLugs': {
@@ -640,7 +730,7 @@ export function reduceElec(s: ElecState, a: Action): ElecState {
       if (a.open === s.jbox.wyeOpen) return s
       if (!s.jbox.coverOff) return log(s, 'warn', 'Cover is on.')
       let next = a.open ? requireHandsOn(s, 'motor') : s
-      next = { ...next, jbox: { ...next.jbox, wyeOpen: a.open }, meter: { ...next.meter, probeA: null, probeB: null, lastTest: null } }
+      next = { ...next, jbox: { ...next.jbox, wyeOpen: a.open }, meter: { ...next.meter, probeA: null, probeB: null }, megger: { ...next.megger, minus: null, plus: null, result: null } }
       return log(next, 'action', a.open ? 'Removed the T4-T5-T6 wye bar. Each winding now isolated: T1-T4, T2-T5, T3-T6.' : 'T4-T5-T6 wye bar reinstalled and torqued.')
     }
     case 'diagnose': {

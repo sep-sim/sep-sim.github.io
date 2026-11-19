@@ -48,7 +48,7 @@ export function scoreElec(s: ElecState): ElecScore {
   const tnotes: string[] = []
   const megged = s.insTests.length > 0
   if (megged && !s.violations.some((v) => v.id === 'meg_into_drive' || v.id === 'meg_through_contactor')) test += 5; else tnotes.push('motor leads not isolated for insulation test')
-  if (megged && s.insTests.every((t) => t.volts >= 500)) test += 4; else tnotes.push('wrong test voltage')
+  if (megged && s.insTests.every((t) => t.volts >= 500 && t.volts <= 1000)) test += 4; else tnotes.push('wrong test voltage')
   const localized = s.insTests.some((t) => t.t >= 0 && (t.a.startsWith('T') || t.b.startsWith('T') || t.a.startsWith('CBL') || t.b.startsWith('CBL')))
   if (localized) test += 3; else tnotes.push('fault not localized at the motor box')
   if (s.scenario.fault === 'motor' && !s.log.some((l) => l.text.includes('Removed the T4-T5-T6 wye bar'))) tnotes.push('winding not isolated at the wye point')

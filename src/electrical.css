@@ -89,3 +89,67 @@ svg.scene { width: 100%; height: 100%; font-family: inherit; }
 
 .menu-section { margin-top: 28px; }
 .menu-section h2 { font-size: 15px; margin: 0 0 4px; }
+
+/* ---------- Megger S1-568 in its case ---------- */
+.mg { display: grid; gap: 10px; }
+.mg-case { background: #1d1f22; border-radius: 14px; padding: 16px 12px 18px; box-shadow: 0 8px 20px rgba(0, 0, 0, 0.6), inset 0 0 0 3px #2c2f33, inset 0 0 0 5px #121315; }
+.mg-panel { background: #cfcabd; border-radius: 10px; padding: 10px; box-shadow: inset 0 0 0 2px #a9a497; color: #222; }
+.mg-terms { display: flex; justify-content: center; align-items: center; gap: 14px; background: #e4e0d4; border: 2px solid #8d8778; border-radius: 6px; padding: 6px 8px; margin-bottom: 10px; }
+.mg-term { display: grid; justify-items: center; gap: 2px; padding: 2px 10px; border-radius: 4px; }
+.mg-term i { width: 18px; height: 18px; border-radius: 50%; background: #111; border: 4px solid #333; box-shadow: 0 0 0 2px #000 inset; }
+.mg-term b { font-size: 10px; color: #fff; }
+.mg-term.red { background: #e02020; }
+.mg-term.red i { border-color: #ff6a6a; }
+.mg-term.blue { background: #1f5fd1; }
+.mg-term.blue i { border-color: #6a9bff; }
+.mg-term.black { background: #1b1b1b; }
+.mg-term.black i { border-color: #777; }
+.mg-cat { font-size: 8px; font-weight: 700; color: #222; text-align: center; line-height: 1.1; }
+.mg-warn { color: #333; font-size: 14px; }
+.mg-main { display: grid; grid-template-columns: 36px 1fr 70px; gap: 8px; align-items: center; }
+.mg-side { display: grid; gap: 10px; justify-items: center; }
+.mg-key { width: 30px; height: 26px; border-radius: 6px; background: #2b2d30; color: #eee; border: 1px solid #000; font-size: 12px; padding: 0; }
+.mg-key.save { background: #2f6fd1; }
+.mg-mains { display: grid; justify-items: center; gap: 2px; font-size: 12px; }
+.mg-mains i { width: 6px; height: 6px; border-radius: 50%; background: #333; }
+.mg-mains i.on { background: #3ddc84; }
+.mg-lcd { background: #b6bfae; color: #141a14; border-radius: 6px; border: 3px solid #4b4e49; padding: 6px 10px; min-height: 120px; font-family: Consolas, monospace; box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.35); }
+.mg-lcd.off { background: #8f978a; }
+.mg-lcd-top { display: flex; justify-content: space-between; font-size: 11px; font-weight: 700; min-height: 14px; }
+.mg-lcd-big { font-size: 30px; font-weight: 700; text-align: right; line-height: 1.1; min-height: 34px; white-space: nowrap; }
+.mg-lcd-l2, .mg-lcd-l3 { font-size: 11px; text-align: right; min-height: 14px; font-weight: 700; }
+.mg-lcd-leads { font-size: 9px; color: #2b3a2b; min-height: 12px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mg-arrows { display: grid; justify-items: center; gap: 2px; }
+.mg-arrows div { display: flex; gap: 2px; }
+.mg-arrows button { width: 22px; height: 22px; padding: 0; border-radius: 50%; background: #2b2d30; color: #eee; border: 1px solid #000; font-size: 9px; }
+.mg-arrows button.ok { font-weight: 700; }
+.mg-lower { display: grid; grid-template-columns: 104px 30px 126px 1fr; gap: 4px; align-items: center; margin-top: 10px; }
+.mg-knobwrap { position: relative; width: 104px; height: 104px; }
+.mg-knobwrap.volts { width: 126px; height: 126px; }
+.mg-knob { position: absolute; left: 50%; top: 50%; width: 54px; height: 54px; transform: translate(-50%, -50%); border-radius: 50%; background: radial-gradient(circle at 40% 30%, #3b3d41, #141517 72%); border: 3px solid #0c0c0c; cursor: pointer; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.6); }
+.mg-knobwrap.volts .mg-knob { width: 58px; height: 58px; }
+.mg-pointer { position: absolute; left: 50%; top: 50%; width: 10px; height: 26px; margin-left: -5px; margin-top: -26px; transform-origin: 50% 100%; }
+.mg-knobwrap.volts .mg-pointer { height: 34px; margin-top: -34px; }
+.mg-pointer::before { content: ''; position: absolute; left: 2px; top: 2px; width: 6px; height: 16px; background: #d8d8d8; border-radius: 3px; }
+.mg-pos { position: absolute; transform: translate(-50%, -50%); background: transparent; border: 0; padding: 1px 2px; font-size: 8px; font-weight: 800; color: #c21e1e; border-radius: 3px; white-space: nowrap; }
+.mg-pos.hv { color: #fff; }
+.mg-pos.util { color: #fff; }
+.mg-pos.off { color: #222; }
+.mg-pos.sel { text-decoration: underline; }
+.mg-pos:hover { background: rgba(0, 0, 0, 0.08); border-color: transparent; }
+.mg-arc { position: absolute; left: 50%; top: 50%; width: 100px; height: 100px; border-radius: 50%; transform: translate(-50%, -50%); }
+.mg-arc.hv { background: conic-gradient(from 20deg, #e8601c 0deg 210deg, transparent 210deg 360deg); }
+.mg-arc.util { background: conic-gradient(from 215deg, #8a8d90 0deg 115deg, transparent 115deg 360deg); }
+.mg-arc::after { content: ""; position: absolute; inset: 20px; border-radius: 50%; background: #cfcabd; }
+.mg-right { display: grid; justify-items: center; gap: 6px; }
+.mg-testwrap { display: flex; align-items: center; gap: 6px; }
+.mg-led { width: 8px; height: 8px; border-radius: 50%; background: #3a1414; }
+.mg-led.on { background: #ff2d2d; box-shadow: 0 0 6px #ff2d2d; }
+.mg-test { width: 40px; height: 40px; border-radius: 50%; background: #d11a1a; color: #fff; font-weight: 800; font-size: 11px; border: 2px solid #5a0000; box-shadow: 0 4px 0 #5a0000; padding: 0; }
+.mg-test.on { background: #ff4040; box-shadow: 0 1px 0 #5a0000; transform: translateY(3px); }
+.mg-test:disabled { background: #8a3a3a; }
+.mg-logo { display: grid; justify-items: center; line-height: 1; margin-top: 4px; }
+.mg-logo b { font-size: 16px; color: #1b1b1b; letter-spacing: -0.02em; }
+.mg-logo small { font-size: 10px; font-weight: 700; color: #333; }
+.mg-logo em { font-size: 7px; font-style: normal; color: #444; letter-spacing: 0.04em; }
+.f1587-keys.three { grid-template-columns: 1fr 1fr 1fr; }

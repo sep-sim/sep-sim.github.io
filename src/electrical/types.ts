@@ -74,9 +74,39 @@ export interface ElecScenario {
   targetTests: number
 }
 
-export type MeterMode = 'OFF' | 'VAC' | 'VDC' | 'OHM' | 'INS'
-export const INS_VOLTS = [50, 100, 250, 500, 1000] as const
-export type InsVolts = (typeof INS_VOLTS)[number]
+export type MeterMode = 'OFF' | 'VAC' | 'VDC' | 'OHM'
+
+/** Megger S1-568 voltage knob (right-hand arc) and test-mode knob. */
+export const MEGGER_VOLTS = [250, 500, 1000, 2500, 5000] as const
+export type MeggerVolts = (typeof MEGGER_VOLTS)[number]
+export type MeggerMode = 'OFF' | 'IR' | 'IRT' | 'DAR' | 'PI' | 'DD' | 'SV' | 'RAMP'
+export type MeggerLeadId = 'minus' | 'plus'
+
+export interface MeggerResult {
+  mode: MeggerMode
+  volts: MeggerVolts
+  seconds: number
+  /** final resistance, MΩ (Infinity = over range) */
+  r: number
+  reading: string
+  dar?: number
+  pi?: number
+  /** leakage current at the end of the test, nA */
+  leakNa: number
+}
+
+export interface MeggerState {
+  mode: MeggerMode
+  volts: MeggerVolts
+  /** black (−) lead: on the conductor under test */
+  minus: Point | null
+  /** red (+) lead: to earth */
+  plus: Point | null
+  testing: boolean
+  tStart: number | null
+  result: MeggerResult | null
+  inhibit: string | null
+}
 
 export type LockTarget = 'mcc' | 'lp2'
 
@@ -104,13 +134,13 @@ export const CHECKLIST: ChecklistItem[] = [
   { id: 'sources', label: 'Review one-line E-401 and list every source: MCC-3 bucket 3B (480 V), LP-2 ckt 7 (120 V control), DC bus capacitors' },
   { id: 'notify', label: 'Notify operations: P-101 out of service, standby pump P-102 carrying the station' },
   { id: 'jsa', label: 'JSA reviewed; arc flash boundary marked; second person at the boundary' },
-  { id: 'meter', label: 'Fluke 1587 verified CAT III 1000 V, leads inspected, due date in cal' },
+  { id: 'meter', label: 'Fluke 87V (CAT III 1000 V) and Megger S1-568 checked, leads inspected, both in cal' },
 ]
 
 export type LogKind = 'info' | 'measure' | 'action' | 'warn' | 'inspect' | 'violation'
 export interface LogEntry { t: number; kind: LogKind; text: string }
 
-export interface InsTest { a: Point; b: Point; volts: InsVolts; reading: string; t: number }
+export interface InsTest { a: Point; b: Point; volts: MeggerVolts; reading: string; t: number; mode: MeggerMode; dar?: number; pi?: number }
 export interface DeadTest { a: Point; b: Point; mode: MeterMode; t: number }
 
 export interface ElecState {
@@ -134,7 +164,8 @@ export interface ElecState {
   drive: { faulted: boolean; running: boolean; damaged: boolean; display: string }
   leadsLifted: boolean
   jbox: { coverOff: boolean; feedersUnbolted: boolean; lugsCleared: boolean; wyeOpen: boolean; inspected: boolean }
-  meter: { mode: MeterMode; insVolts: InsVolts; probeA: Point | null; probeB: Point | null; lastTest: string | null }
+  meter: { mode: MeterMode; probeA: Point | null; probeB: Point | null }
+  megger: MeggerState
   proofs: number[]
   deadTests: DeadTest[]
   insTests: InsTest[]
