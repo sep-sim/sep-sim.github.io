@@ -7,17 +7,18 @@ import { hmiReading } from '../engine/loop'
 import { Fluke789 } from './Fluke789'
 import { Trex } from './Trex'
 
-type Tab = 'hmi' | 'meter' | 'hart' | 'manifold' | 'prework' | 'closeout'
+export type ToolTab = 'hmi' | 'meter' | 'hart' | 'manifold' | 'prework' | 'closeout'
 
 interface Props {
   state: SessionState
   sol: LoopSolution
   dispatch: (a: Action) => void
+  tab: ToolTab
+  setTab: (t: ToolTab) => void
 }
 
-export function Toolbox({ state, sol, dispatch }: Props) {
-  const [tab, setTab] = useState<Tab>('prework')
-  const tabs: { id: Tab; label: string }[] = [
+export function Toolbox({ state, sol, dispatch, tab, setTab }: Props) {
+  const tabs: { id: ToolTab; label: string }[] = [
     { id: 'prework', label: 'Pre-work' },
     { id: 'hmi', label: 'HMI' },
     { id: 'meter', label: 'Fluke 789' },

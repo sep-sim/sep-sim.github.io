@@ -67,13 +67,16 @@
 .f789-jacklabels { display: flex; justify-content: space-between; color: #f08a24; font-size: 8px; font-weight: 700; margin: 6px 6px 0; }
 .f789-ratings { display: grid; grid-template-columns: repeat(4, 1fr); text-align: center; color: #ddd; font-size: 7px; line-height: 1.2; margin-top: 4px; }
 .f789-jacks { display: grid; grid-template-columns: repeat(4, 1fr); justify-items: center; margin-top: 4px; color: #eee; font-size: 10px; font-weight: 700; }
-.f789-jack { display: grid; justify-items: center; gap: 3px; text-align: center; }
+.f789-jack { display: grid; justify-items: center; gap: 3px; text-align: center; background: transparent; border: 0; padding: 0; color: #eee; cursor: pointer; border-radius: 6px; }
+.f789-jack:hover { background: rgba(255, 255, 255, 0.08); }
 .f789-jack .j { font-size: 10px; }
 .f789-jack small { font-size: 7px; color: #ccc; line-height: 1.1; }
 .f789-jack small.orange { color: #f08a24; }
 .f789-jack i { width: 22px; height: 22px; border-radius: 50%; background: #111; border: 4px solid #c8102e; box-shadow: inset 0 0 0 3px #000; }
 .f789-jack.black i { border-color: #222; }
-.f789-jack.red i { box-shadow: 0 0 0 3px #ff4d4d88, inset 0 0 0 3px #000; }
+.f789-jack.want i { box-shadow: 0 0 0 2px #f5b800, inset 0 0 0 3px #000; }
+.f789-jack.in i { background: #e8321f; border-color: #ff6a6a; box-shadow: 0 0 0 3px #ff4d4d88, inset 0 0 0 2px #7a0000; }
+.f789-jack.black.in i { background: #2a2a2a; border-color: #777; box-shadow: 0 0 0 3px #ffffff55, inset 0 0 0 2px #000; }
 .f789-leads { display: flex; gap: 14px; align-items: center; font-size: 12px; flex-wrap: wrap; }
 
 /* ---------- AMS Trex ---------- */

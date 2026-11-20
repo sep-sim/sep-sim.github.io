@@ -1,5 +1,7 @@
 import type { InspectWhere, NodeId, SessionState } from '../engine/types'
 import type { LoopSolution } from '../engine/loop'
+import type { LeadSpec } from './LeadLayer'
+import { LeadLayer } from './LeadLayer'
 
 interface Props {
   state: SessionState
@@ -8,6 +10,8 @@ interface Props {
   onInspect: (where: InspectWhere) => void
   onValve: (open: boolean) => void
   onFuse: (pulled: boolean) => void
+  leads: LeadSpec[]
+  onDrop: (lead: string, target: string | null) => void
 }
 
 const NODE_POS: Record<NodeId, [number, number]> = {
@@ -27,7 +31,7 @@ function path(points: [number, number][]): string {
   return points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0]} ${p[1]}`).join(' ')
 }
 
-export function SiteDiagram({ state, sol, onProbe, onInspect, onValve, onFuse }: Props) {
+export function SiteDiagram({ state, sol, onProbe, onInspect, onValve, onFuse, leads, onDrop }: Props) {
   const live = sol.current >= 3.5
   const wire = live ? 'var(--wire-live)' : 'var(--wire-dead)'
   const m = state.meter
@@ -38,7 +42,7 @@ export function SiteDiagram({ state, sol, onProbe, onInspect, onValve, onFuse }:
     const isB = m.probeB === id
     const cls = `tp${isA ? ' tp-a' : ''}${isB ? ' tp-b' : ''}`
     return (
-      <g key={id} className={cls} onClick={() => onProbe(id)}>
+      <g key={id} className={cls} data-point={id} onClick={() => onProbe(id)}>
         <circle cx={x} cy={y} r={9} />
         <text x={x} y={y + 4} textAnchor="middle">{NODE_SHORT[id]}</text>
       </g>
@@ -124,6 +128,7 @@ export function SiteDiagram({ state, sol, onProbe, onInspect, onValve, onFuse }:
 
       {/* test points */}
       {(Object.keys(NODE_POS) as NodeId[]).map(node)}
+      <LeadLayer leads={leads} height={540} onDrop={onDrop} />
     </svg>
   )
 }

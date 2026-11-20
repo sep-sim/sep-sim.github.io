@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { useLayoutEffect, useRef, useState } from 'react'
-import type { MeterKey, MeterMode } from '../engine/types'
-import { METER_MODES } from '../engine/types'
+import type { Jack, MeterJacks, MeterKey, MeterMode } from '../engine/types'
+import { METER_MODES, jackForMode } from '../engine/types'
 
 /** Rotary positions laid out as on the real unit. Angle 0 = straight up, clockwise positive. */
 const KNOB_789: { mode: MeterMode; top?: string; main: string; sub?: string; angle: number; big?: boolean }[] = [
@@ -32,8 +32,9 @@ export interface Fluke789FaceProps {
   hart250?: boolean
   onMode: (mode: MeterMode) => void
   onKey: (key: MeterKey) => void
-  /** which jack the red lead is in */
-  redJack: 'A' | 'mA' | 'V' | null
+  /** where the leads are plugged; click a jack to plug or unplug */
+  jacks: MeterJacks
+  onJack: (jack: Jack, on: boolean) => void
   leads: ReactNode
   hint: ReactNode
 }
@@ -41,6 +42,14 @@ export interface Fluke789FaceProps {
 /** The Fluke 789 ProcessMeter face: knob, dual LCD, keys and jacks. Pure presentation, shared by every module. */
 export function Fluke789Face(p: Fluke789FaceProps) {
   const off = p.mode === 'OFF'
+  const want = off ? null : jackForMode(p.mode)
+  const leadAlert = !off && p.jacks.red != null && p.jacks.red !== want
+  const jack = (id: Jack, label: string, sub: ReactNode) => {
+    const plugged = id === 'COM' ? p.jacks.black : p.jacks.red === id
+    const cls = `f789-jack${id === 'COM' ? ' black' : ''}${plugged ? ' in' : ''}${want === id || (id === 'COM' && !off) ? ' want' : ''}`
+    const title = plugged ? `Unplug the ${id === 'COM' ? 'black' : 'red'} lead` : id === 'COM' ? 'Plug the black lead in here' : `Plug the red lead in here${want === id ? ' (this position uses it)' : ''}`
+    return <button type="button" className={cls} title={title} onClick={() => p.onJack(id, !plugged)}><span className="j">{label}</span><i /><small>{sub}</small></button>
+  }
   const { root: fitRoot, body: fitBody, k: fitK, height: fitHeight } = useFitScale()
   const current = KNOB_789.find((k) => k.mode === p.mode)!
   const key = (k: MeterKey) => () => p.onKey(k)
@@ -60,7 +69,7 @@ export function Fluke789Face(p: Fluke789FaceProps) {
 
           <div className={`f789-lcd ${off ? 'off' : ''} ${p.backlight ? 'lit' : ''}`}>
             <div className="f789-units">{!off && p.units.map((u) => <span key={u}>{u}</span>)}</div>
-            <div className="f789-digits">{off ? '' : p.primary}</div>
+            <div className="f789-digits">{off ? '' : leadAlert && !p.held ? 'LEAd' : p.primary}</div>
             <div className="f789-rangeline">
               <span>{!off && p.manualRange ? 'Manual Range' : ''}</span>
               <span>{off ? '' : p.range}</span>
@@ -130,10 +139,10 @@ export function Fluke789Face(p: Fluke789FaceProps) {
             <span>CAT III 1000V<br />CAT IV 600V</span>
           </div>
           <div className="f789-jacks">
-            <div className={`f789-jack ${p.redJack === 'A' ? 'red' : ''}`}><span className="j">A ~⎓</span><i /><small className="orange">LOOP<br />POWER</small></div>
-            <div className={`f789-jack ${p.redJack === 'mA' ? 'red' : ''}`}><span className="j">mA ⎓</span><i /><small>48V<br />MAX</small></div>
-            <div className="f789-jack black"><span className="j">COM</span><i /><small>⏚</small></div>
-            <div className={`f789-jack ${p.redJack === 'V' ? 'red' : ''}`}><span className="j">Ω V</span><i /><small>⚠</small></div>
+            {jack('A', 'A ~⎓', <span className="orange">LOOP<br />POWER</span>)}
+            {jack('mA', 'mA ⎓', <>48V<br />MAX</>)}
+            {jack('COM', 'COM', '⏚')}
+            {jack('V', 'Ω V', '⚠')}
           </div>
         </div>
       </div>

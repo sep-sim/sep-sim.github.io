@@ -114,6 +114,18 @@ export interface LogEntry { t: number; kind: LogKind; text: string }
  * voltage across its leads and sources otherwise.
  */
 export type MeterMode = 'OFF' | 'VAC' | 'VDC' | 'mVDC' | 'OHM' | 'mA' | 'OUT' | 'OUT_AUTO' | 'LOOP'
+/** 789 input jacks, left to right: A (loop power), mA, COM, Ω V. */
+export type Jack = 'A' | 'mA' | 'COM' | 'V'
+export const JACK_LABEL: Record<Jack, string> = { A: 'A / LOOP POWER', mA: 'mA', COM: 'COM', V: 'Ω V' }
+/** Where the leads are plugged: the red lead sits in one of A, mA or Ω V, the black lead in COM. */
+export interface MeterJacks { red: 'A' | 'mA' | 'V' | null; black: boolean }
+/** The jack a knob position reads or sources through. */
+export function jackForMode(mode: MeterMode): 'A' | 'mA' | 'V' {
+  if (mode === 'LOOP') return 'A'
+  if (mode === 'mA' || mode === 'OUT' || mode === 'OUT_AUTO') return 'mA'
+  return 'V'
+}
+export type LeadId = 'red' | 'black'
 export const METER_MODES: MeterMode[] = ['OFF', 'VAC', 'VDC', 'mVDC', 'OHM', 'mA', 'OUT', 'OUT_AUTO', 'LOOP']
 
 export type RampMode = 'slow' | 'fast' | 'step'
@@ -126,6 +138,7 @@ export type MeterKey =
 
 export interface MeterState {
   mode: MeterMode
+  jacks: MeterJacks
   probeA: NodeId | null
   probeB: NodeId | null
   /** Snapshot shown while HOLD is active. */

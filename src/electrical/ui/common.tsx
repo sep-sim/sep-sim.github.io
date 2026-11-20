@@ -1,8 +1,11 @@
 import type { ElecState, Point } from '../types'
+import type { LeadSpec } from '../../components/LeadLayer'
 
 export interface SceneProps {
   state: ElecState
   onProbe: (p: Point) => void
+  leads: LeadSpec[]
+  onDrop: (lead: string, target: string | null) => void
 }
 
 /** A clickable test point on a scene. */
@@ -13,7 +16,7 @@ export function TP({ state, id, x, y, label, onProbe, side = 'right' }: { state:
   const ly = side === 'top' ? y - 12 : side === 'bottom' ? y + 18 : y + 4
   const anchor = side === 'left' ? 'end' : side === 'right' ? 'start' : 'middle'
   return (
-    <g className={cls} onClick={(e) => { e.stopPropagation(); onProbe(id) }}>
+    <g className={cls} data-point={id} onClick={(e) => { e.stopPropagation(); onProbe(id) }}>
       <circle cx={x} cy={y} r={8} />
       {label && <text x={lx} y={ly} textAnchor={anchor} className="etp-label">{label}</text>}
     </g>

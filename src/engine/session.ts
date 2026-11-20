@@ -3,7 +3,8 @@
 import type {
   DiagnosisId, InspectWhere, LogEntry, LogKind, MeterKey, MeterMode, MeterState, NodeId, RepairId, Scenario, SessionState,
 } from './types'
-import { NODE_LABEL, PREWORK_CHECKLIST, REPAIRS, SERIES_CAPABLE } from './types'
+import { JACK_LABEL, NODE_LABEL, PREWORK_CHECKLIST, REPAIRS, SERIES_CAPABLE, jackForMode } from './types'
+import type { Jack, LeadId } from './types'
 import { hasFault, hmiReading, solveLoop } from './loop'
 import { meterReading, outputBehaviour } from './meter'
 
@@ -12,7 +13,9 @@ export type Action =
   | { type: 'checklist'; id: string }
   | { type: 'meterMode'; mode: MeterMode }
   | { type: 'meterKey'; key: MeterKey }
-  | { type: 'probe'; node: NodeId }
+  | { type: 'probe'; node: NodeId; lead?: LeadId }
+  | { type: 'meterJack'; jack: Jack; on: boolean }
+  | { type: 'meterLift'; lead: LeadId }
   | { type: 'meterClear' }
   | { type: 'inspect'; where: InspectWhere }
   | { type: 'fuse'; pulled: boolean }
@@ -47,7 +50,7 @@ export function createSession(scenario: Scenario): SessionState {
     pumpPressure: null,
     xmtr: { lrv: scenario.initial.xmtrLrv, urv: scenario.initial.xmtrUrv },
     hart: { connected: false, loopPower: false, loopTest: null, screen: null },
-    meter: { mode: 'OFF', probeA: null, probeB: null, held: null, hart250: false, outMa: 4, ramp: 'slow', rampDir: 1, manualRange: false, rel: null, minMax: 'off', backlight: false },
+    meter: { mode: 'OFF', jacks: { red: null, black: false }, probeA: null, probeB: null, held: null, hart250: false, outMa: 4, ramp: 'slow', rampDir: 1, manualRange: false, rel: null, minMax: 'off', backlight: false },
     measurements: 0,
     ohmsOnLive: 0,
     sourceIntoLive: 0,
@@ -185,10 +188,18 @@ function rampTick(s: SessionState): SessionState {
   return setMeter(s, { outMa: clampMa(out), rampDir: dir })
 }
 
-function probe(s: SessionState, node: NodeId): SessionState {
+function probe(s: SessionState, node: NodeId, lead?: LeadId): SessionState {
   const m = s.meter
   if (m.mode === 'OFF') return log(s, 'warn', '789 is switched off.')
-  const s1 = setMeter(fieldAction(s), { held: null })
+  const want = jackForMode(m.mode)
+  let jacks = m.jacks
+  if (lead) {
+    if (jacks.red == null || !jacks.black) return log(s, 'warn', 'Plug both leads into the 789 first: black in COM, red in the jack this knob position uses.')
+    if (jacks.red !== want) return log(s, 'warn', `789 input alert, LEAd flashing: the red lead is in the ${JACK_LABEL[jacks.red]} jack but this position uses ${JACK_LABEL[want]}. Move the lead.`)
+  } else {
+    jacks = { red: want, black: true }
+  }
+  const s1 = setMeter(fieldAction(s), { held: null, jacks })
 
   // mA measure: single-point series insertion
   if (m.mode === 'mA') {
@@ -199,11 +210,15 @@ function probe(s: SessionState, node: NodeId): SessionState {
   }
 
   // everything else: two leads
+  const counts = m.mode !== 'VAC'
+  if (lead) {
+    const placed = setMeter(s1, lead === 'red' ? { probeA: node } : { probeB: node })
+    return placed.meter.probeA != null && placed.meter.probeB != null ? recordReading(placed, counts) : placed
+  }
   if (m.probeA == null || m.probeB != null) {
     return setMeter(s1, { probeA: node, probeB: null })
   }
   const placed = setMeter(s1, { probeB: node })
-  const counts = m.mode !== 'VAC'
   return recordReading(placed, counts)
 }
 
@@ -313,7 +328,16 @@ export function reduce(s: SessionState, a: Action): SessionState {
     case 'meterClear':
       return setMeter(s, { probeA: null, probeB: null, held: null, rel: null })
     case 'probe':
-      return probe(s, a.node)
+      return probe(s, a.node, a.lead)
+    case 'meterJack': {
+      const j = s.meter.jacks
+      const jacks = a.jack === 'COM' ? { ...j, black: a.on } : { ...j, red: a.on ? a.jack : j.red === a.jack ? null : j.red }
+      if (jacks.red === j.red && jacks.black === j.black) return s
+      const lead = a.jack === 'COM' ? 'black lead' : 'red lead'
+      return log(setMeter(s, { jacks, probeA: null, probeB: null, held: null }), 'action', `${a.on ? 'Plugged' : 'Unplugged'} the ${lead} ${a.on ? 'into' : 'from'} the 789 ${JACK_LABEL[a.jack]} jack.`)
+    }
+    case 'meterLift':
+      return setMeter(s, a.lead === 'red' || s.meter.mode === 'mA' ? { probeA: null, held: null } : { probeB: null, held: null })
     case 'inspect':
       return inspect(fieldAction(s), a.where)
     case 'fuse': {

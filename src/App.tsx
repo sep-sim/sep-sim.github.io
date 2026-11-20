@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useReducer, useState } from 'react'
-import type { Scenario } from './engine/types'
+import type { NodeId, Scenario } from './engine/types'
 import { createSession, reduce } from './engine/session'
 import { solveLoop } from './engine/loop'
 import { SCENARIOS, pickRandomScenario } from './scenarios'
 import { SiteDiagram } from './components/SiteDiagram'
 import { Toolbox } from './components/Toolbox'
+import type { ToolTab } from './components/Toolbox'
+import type { LeadSpec } from './components/LeadLayer'
+import type { LeadId } from './engine/types'
 import { LogDock } from './components/LogDock'
 import { useLogDock } from './components/useLogDock'
 import { Results } from './components/Results'
@@ -16,11 +19,24 @@ function Sim({ scenario, onExit }: { scenario: Scenario; onExit: () => void }) {
   const [state, dispatch] = useReducer(reduce, scenario, createSession)
   const sol = useMemo(() => solveLoop(state), [state])
   const { dock, setDock, simStyle } = useLogDock()
+  const [tab, setTab] = useState<ToolTab>('prework')
 
   useEffect(() => {
     const id = setInterval(() => dispatch({ type: 'tick' }), 1000)
     return () => clearInterval(id)
   }, [])
+
+  const m = state.meter
+  const leads: LeadSpec[] = tab === 'meter'
+    ? [
+        ...(m.jacks.red ? [{ id: 'red', color: '#e8321f', label: 'red', point: m.probeA }] : []),
+        ...(m.jacks.black ? [{ id: 'black', color: '#1b1b1b', label: 'black', point: m.mode === 'mA' ? m.probeA : m.probeB }] : []),
+      ]
+    : []
+  const onDrop = (lead: string, target: string | null) => {
+    if (target) dispatch({ type: 'probe', node: target as NodeId, lead: lead as LeadId })
+    else dispatch({ type: 'meterLift', lead: lead as LeadId })
+  }
 
   if (state.finished) {
     return <Results state={state} onRestart={() => window.location.reload()} onMenu={onExit} />
@@ -45,10 +61,12 @@ function Sim({ scenario, onExit }: { scenario: Scenario; onExit: () => void }) {
             onInspect={(where) => dispatch({ type: 'inspect', where })}
             onValve={(open) => dispatch({ type: 'valve', open })}
             onFuse={(pulled) => dispatch({ type: 'fuse', pulled })}
+            leads={leads}
+            onDrop={onDrop}
           />
         </section>
         <aside>
-          <Toolbox state={state} sol={sol} dispatch={dispatch} />
+          <Toolbox state={state} sol={sol} dispatch={dispatch} tab={tab} setTab={setTab} />
         </aside>
       </main>
       <footer>

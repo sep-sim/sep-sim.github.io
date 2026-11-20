@@ -1,5 +1,7 @@
 import { useEffect, useReducer, useState } from 'react'
-import type { ElecScenario, Point, Scene } from '../types'
+import type { LeadSpec } from '../../components/LeadLayer'
+import type { LeadId } from '../../engine/types'
+import type { ElecScenario, Point, Scene, MeggerLeadId } from '../types'
 import { createElecSession, ppeCheck, reduceElec } from '../engine'
 import { scoreElec, elecAnswer, diagnosisLabel } from '../score'
 import { REPAIRS } from '../types'
@@ -66,21 +68,31 @@ export function ElecSim({ scenario, onExit }: { scenario: ElecScenario; onExit: 
     { id: 'tic', label: 'TIC 300' }, { id: 'dmm', label: 'Fluke 789' }, { id: 'megger', label: 'Megger' }, { id: 'relay', label: 'Relay' }, { id: 'closeout', label: 'Close-out' },
   ]
 
-  /** Scene taps go to whichever instrument is in hand: TIC tip, 789 leads (red then black), or Megger (− then +). */
+  /** Scene taps are the TIC tip; the 789 and Megger leads are dragged onto the points instead. */
   const onProbe = (p: Point) => {
-    if (tab === 'tic') {
-      dispatch({ type: 'ticCheck', point: p })
-      return
+    if (tab === 'tic') dispatch({ type: 'ticCheck', point: p })
+  }
+  const mt = state.meter
+  const mg = state.megger
+  const leads: LeadSpec[] = tab === 'dmm'
+    ? [
+        ...(mt.jacks.red ? [{ id: 'red', color: '#e8321f', label: 'red', point: mt.probeA }] : []),
+        ...(mt.jacks.black ? [{ id: 'black', color: '#1b1b1b', label: 'black', point: mt.probeB }] : []),
+      ]
+    : tab === 'megger'
+      ? [
+          ...(mg.leads.minus ? [{ id: 'minus', color: '#1b1b1b', label: '−', point: mg.minus }] : []),
+          ...(mg.leads.plus ? [{ id: 'plus', color: '#e02020', label: '+', point: mg.plus }] : []),
+        ]
+      : []
+  const onDrop = (lead: string, target: string | null) => {
+    if (tab === 'dmm') {
+      if (target) dispatch({ type: 'probe', point: target as Point, lead: lead as LeadId })
+      else dispatch({ type: 'meterLift', lead: lead as LeadId })
+    } else if (tab === 'megger') {
+      if (target) dispatch({ type: 'meggerLead', lead: lead as MeggerLeadId, point: target as Point, drag: true })
+      else dispatch({ type: 'meggerLift', lead: lead as MeggerLeadId })
     }
-    if (tab === 'megger') {
-      const m = state.megger
-      const lead = m.minus == null || m.plus != null ? 'minus' : 'plus'
-      if (lead === 'minus' && m.plus != null) dispatch({ type: 'meggerClear' })
-      dispatch({ type: 'meggerLead', lead, point: p })
-      return
-    }
-    if (tab !== 'dmm') setTab('dmm')
-    dispatch({ type: 'probe', point: p })
   }
 
   return (
@@ -106,9 +118,9 @@ export function ElecSim({ scenario, onExit }: { scenario: ElecScenario; onExit: 
       </header>
       <main>
         <section className="diagram">
-          {state.scene === 'room' && <RoomScene state={state} onProbe={onProbe} dispatch={dispatch} onLabel={() => { dispatch({ type: 'readLabel' }); setLabel(true) }} />}
-          {state.scene === 'compartment' && <CompartmentScene state={state} onProbe={onProbe} dispatch={dispatch} />}
-          {state.scene === 'motor' && <MotorScene state={state} onProbe={onProbe} dispatch={dispatch} />}
+          {state.scene === 'room' && <RoomScene state={state} onProbe={onProbe} leads={leads} onDrop={onDrop} dispatch={dispatch} onLabel={() => { dispatch({ type: 'readLabel' }); setLabel(true) }} />}
+          {state.scene === 'compartment' && <CompartmentScene state={state} onProbe={onProbe} leads={leads} onDrop={onDrop} dispatch={dispatch} />}
+          {state.scene === 'motor' && <MotorScene state={state} onProbe={onProbe} leads={leads} onDrop={onDrop} dispatch={dispatch} />}
         </section>
         <aside>
           <div className="toolbox">

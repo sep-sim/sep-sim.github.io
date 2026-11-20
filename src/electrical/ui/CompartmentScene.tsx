@@ -2,13 +2,14 @@ import type { Action } from '../engine'
 import { chargeLampOn, contactorClosed } from '../engine'
 import type { SceneProps } from './common'
 import { Hotspot, TP } from './common'
+import { LeadLayer } from '../../components/LeadLayer'
 
 interface Props extends SceneProps {
   dispatch: (a: Action) => void
 }
 
 /** Inside the M12 lower door: bypass stabs, VFD output terminations and the P-310 motor cable terminations on a common bus. */
-export function CompartmentScene({ state, onProbe, dispatch }: Props) {
+export function CompartmentScene({ state, onProbe, dispatch, leads, onDrop }: Props) {
   const s = state
   const lamp = chargeLampOn(s)
   const closed = contactorClosed(s)
@@ -98,6 +99,7 @@ export function CompartmentScene({ state, onProbe, dispatch }: Props) {
       <text x="845" y="382" textAnchor="middle" className="hint">unbolt terminations, support on stands, wrap</text>
 
       <Hotspot x={700} y={28} w={210} h={28} label="Close door, back to the room" onClick={() => { dispatch({ type: 'door', open: false }); dispatch({ type: 'goto', scene: 'room' }) }} />
+      <LeadLayer leads={leads} height={600} onDrop={onDrop} />
     </svg>
   )
 }

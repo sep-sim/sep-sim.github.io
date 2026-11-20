@@ -3,7 +3,7 @@
 
 /** The Fluke 789 is the standard meter across modules; its knob positions come from the loop engine's catalog. */
 export type { MeterMode, MeterKey } from '../engine/types'
-import type { MeterMode } from '../engine/types'
+import type { MeterJacks, MeterMode } from '../engine/types'
 
 export type Scene = 'room' | 'compartment' | 'motor'
 
@@ -114,6 +114,8 @@ export interface MeggerResult {
 export interface MeggerState {
   mode: MeggerMode
   volts: MeggerVolts
+  /** test leads connected to the + and − terminals */
+  leads: { plus: boolean; minus: boolean }
   minus: Point | null
   plus: Point | null
   testing: boolean
@@ -200,7 +202,7 @@ export interface ElecState {
   drive: { faulted: boolean; running: boolean; damaged: boolean; display: string }
   leadsLifted: boolean
   jbox: { coverOff: boolean; feedersUnbolted: boolean; lugsCleared: boolean; wyeOpen: boolean; inspected: boolean }
-  meter: { mode: MeterMode; probeA: Point | null; probeB: Point | null; held: string | null; rel: number | null; manualRange: boolean; backlight: boolean }
+  meter: { mode: MeterMode; jacks: MeterJacks; probeA: Point | null; probeB: Point | null; held: string | null; rel: number | null; manualRange: boolean; backlight: boolean }
   megger: MeggerState
   tic: TicState
   proofs: number[]

@@ -7,6 +7,8 @@ import type {
   MeterKey, MeterMode, Point, PpeId, RepairId, Scene, TicRange,
 } from './types'
 import { CHECKLIST, DIAGNOSES, LOCK_TARGETS, POINT_LABEL, POINT_SCENE, PPE_ITEMS, REPAIRS } from './types'
+import { JACK_LABEL, jackForMode } from '../engine/types'
+import type { Jack, LeadId } from '../engine/types'
 
 // ---- actions ------------------------------------------------------------------------------------
 
@@ -27,11 +29,15 @@ export type Action =
   | { type: 'auxDoor'; open: boolean }
   | { type: 'meterMode'; mode: MeterMode }
   | { type: 'meterKey'; key: MeterKey }
-  | { type: 'probe'; point: Point }
+  | { type: 'probe'; point: Point; lead?: LeadId }
+  | { type: 'meterJack'; jack: Jack; on: boolean }
+  | { type: 'meterLift'; lead: LeadId }
   | { type: 'meterClear' }
   | { type: 'meggerMode'; mode: MeggerMode }
   | { type: 'meggerVolts'; volts: MeggerVolts }
-  | { type: 'meggerLead'; lead: MeggerLeadId; point: Point }
+  | { type: 'meggerJack'; term: MeggerLeadId; on: boolean }
+  | { type: 'meggerLead'; lead: MeggerLeadId; point: Point; drag?: boolean }
+  | { type: 'meggerLift'; lead: MeggerLeadId }
   | { type: 'meggerClear' }
   | { type: 'meggerTest' }
   | { type: 'ticPower'; on: boolean }
@@ -119,8 +125,8 @@ export function createElecSession(scenario: ElecScenario): ElecState {
     drive: { faulted: true, running: false, damaged: false, display: scenario.drive.faultCode },
     leadsLifted: false,
     jbox: { coverOff: false, feedersUnbolted: false, lugsCleared: false, wyeOpen: false, inspected: false },
-    meter: { mode: 'OFF', probeA: null, probeB: null, held: null, rel: null, manualRange: false, backlight: false },
-    megger: { mode: 'OFF', volts: 500, minus: null, plus: null, testing: false, tStart: null, result: null, inhibit: null },
+    meter: { mode: 'OFF', jacks: { red: null, black: false }, probeA: null, probeB: null, held: null, rel: null, manualRange: false, backlight: false },
+    megger: { mode: 'OFF', volts: 500, leads: { plus: false, minus: false }, minus: null, plus: null, testing: false, tStart: null, result: null, inhibit: null },
     tic: { on: false, range: 'LOW', selfTestAt: null, last: null },
     proofs: [],
     deadTests: [],
@@ -530,19 +536,36 @@ function meterKey(s: ElecState, key: MeterKey): ElecState {
   }
 }
 
-function placeLead(s: ElecState, p: Point): ElecState {
+function placeLead(s: ElecState, p: Point, lead?: LeadId): ElecState {
   const m = s.meter
   if (m.mode === 'OFF') return log(s, 'warn', 'Meter is off.')
   if (POINT_SCENE[p] !== s.scene) return s
+  const want = jackForMode(m.mode)
+  let jacks = m.jacks
+  if (lead) {
+    if (jacks.red == null || !jacks.black) return log(s, 'warn', 'Plug both leads into the 789 first: black in COM, red in the jack this knob position uses.')
+    if (jacks.red !== want) return log(s, 'warn', `789 input alert, LEAd flashing: the red lead is in the ${JACK_LABEL[jacks.red]} jack but this position uses ${JACK_LABEL[want]}. Move the lead.`)
+  } else {
+    jacks = { red: want, black: true }
+  }
   if (MV_POINTS.includes(p)) {
-    return violate({ ...s, meter: { ...m, probeA: null, probeB: null, held: null } }, 'dmm_on_mv', `${POINT_LABEL[p]}. The 789 stays off 4160 V conductors; verify them with the TIC 300 PRO.`)
+    return violate({ ...s, meter: { ...m, jacks, probeA: null, probeB: null, held: null } }, 'dmm_on_mv', `${POINT_LABEL[p]}. The 789 stays off 4160 V conductors; verify them with the TIC 300 PRO.`)
   }
-  if (m.probeA == null || m.probeB != null) {
-    return { ...s, meter: { ...m, probeA: p, probeB: null, held: null } }
-  }
-  const a = m.probeA
-  const b = p
-  let next: ElecState = { ...s, meter: { ...m, probeB: b, held: null } }
+  let meter = { ...m, jacks, held: null }
+  if (lead === 'red') meter = { ...meter, probeA: p }
+  else if (lead === 'black') meter = { ...meter, probeB: p }
+  else if (m.probeA == null || m.probeB != null) meter = { ...meter, probeA: p, probeB: null }
+  else meter = { ...meter, probeB: p }
+  const placed: ElecState = { ...s, meter }
+  return meter.probeA != null && meter.probeB != null ? measure(placed) : placed
+}
+
+/** Both 789 leads are on points: read, log, and record a dead check or a proof. */
+function measure(s: ElecState): ElecState {
+  const m = s.meter
+  const a = m.probeA!
+  const b = m.probeB!
+  let next: ElecState = s
   if (m.mode === 'mA' || m.mode === 'OUT' || m.mode === 'OUT_AUTO' || m.mode === 'LOOP') {
     return log(next, 'warn', `789 in a current position at ${POINT_LABEL[a]} → ${POINT_LABEL[b]}: there is no 4-20 mA loop here. Use V AC or Ω.`)
   }
@@ -813,7 +836,16 @@ export function reduceElec(s: ElecState, a: Action): ElecState {
     case 'meterKey':
       return meterKey(s, a.key)
     case 'probe':
-      return placeLead(s, a.point)
+      return placeLead(s, a.point, a.lead)
+    case 'meterJack': {
+      const j = s.meter.jacks
+      const jacks = a.jack === 'COM' ? { ...j, black: a.on } : { ...j, red: a.on ? a.jack : j.red === a.jack ? null : j.red }
+      if (jacks.red === j.red && jacks.black === j.black) return s
+      const lead = a.jack === 'COM' ? 'black lead' : 'red lead'
+      return log({ ...s, meter: { ...s.meter, jacks, probeA: null, probeB: null, held: null } }, 'action', `${a.on ? 'Plugged' : 'Unplugged'} the ${lead} ${a.on ? 'into' : 'from'} the 789 ${JACK_LABEL[a.jack]} jack.`)
+    }
+    case 'meterLift':
+      return { ...s, meter: { ...s.meter, [a.lead === 'red' ? 'probeA' : 'probeB']: null, held: null } }
     case 'meterClear':
       return { ...s, meter: { ...s.meter, probeA: null, probeB: null, held: null, rel: null } }
     case 'meggerMode': {
@@ -824,11 +856,23 @@ export function reduceElec(s: ElecState, a: Action): ElecState {
       if (s.megger.testing) return log(s, 'warn', 'Stop the test before changing the voltage.')
       return { ...s, megger: { ...s.megger, volts: a.volts, result: null, inhibit: null } }
     }
+    case 'meggerJack': {
+      if (s.megger.leads[a.term] === a.on) return s
+      const stopped = s.megger.testing ? meggerStop(s) : s
+      const next: ElecState = { ...stopped, megger: { ...stopped.megger, leads: { ...stopped.megger.leads, [a.term]: a.on }, [a.term]: null, result: null, inhibit: null } }
+      return log(next, 'action', `${a.on ? 'Connected' : 'Disconnected'} the ${a.term === 'plus' ? 'red + lead' : 'black − lead'} ${a.on ? 'to' : 'from'} the Megger ${a.term === 'plus' ? '+' : '−'} terminal.`)
+    }
     case 'meggerLead': {
       if (POINT_SCENE[a.point] !== s.scene) return s
       if (s.megger.mode === 'OFF') return log(s, 'warn', 'Megger is off.')
+      if (a.drag && !s.megger.leads[a.lead]) return log(s, 'warn', `Connect the ${a.lead === 'plus' ? '+' : '−'} lead to the Megger first.`)
       const stopped = s.megger.testing ? meggerStop(s) : s
-      return { ...stopped, megger: { ...stopped.megger, [a.lead]: a.point, result: null, inhibit: null } }
+      const leads = a.drag ? stopped.megger.leads : { ...stopped.megger.leads, [a.lead]: true }
+      return { ...stopped, megger: { ...stopped.megger, leads, [a.lead]: a.point, result: null, inhibit: null } }
+    }
+    case 'meggerLift': {
+      const stopped = s.megger.testing ? meggerStop(s) : s
+      return { ...stopped, megger: { ...stopped.megger, [a.lead]: null, result: null, inhibit: null } }
     }
     case 'meggerClear': {
       const stopped = s.megger.testing ? meggerStop(s) : s

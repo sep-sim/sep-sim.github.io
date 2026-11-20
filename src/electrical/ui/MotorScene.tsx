@@ -1,12 +1,13 @@
 import type { Action } from '../engine'
 import type { SceneProps } from './common'
 import { Hotspot, TP } from './common'
+import { LeadLayer } from '../../components/LeadLayer'
 
 interface Props extends SceneProps {
   dispatch: (a: Action) => void
 }
 
-function Exterior({ state, dispatch }: Props) {
+function Exterior({ state, dispatch, leads, onDrop }: Props) {
   const s = state
   return (
     <svg viewBox="0 0 960 600" className="scene">
@@ -54,11 +55,12 @@ function Exterior({ state, dispatch }: Props) {
 
       <Hotspot x={30} y={520} w={220} h={36} label="← Back to the electrical room" onClick={() => dispatch({ type: 'goto', scene: 'room' })} />
       <Hotspot x={270} y={520} w={220} h={36} label="← M12 compartment" onClick={() => dispatch({ type: 'goto', scene: 'compartment' })} />
+      <LeadLayer leads={leads} height={600} onDrop={onDrop} />
     </svg>
   )
 }
 
-function Interior({ state, onProbe, dispatch }: Props) {
+function Interior({ state, onProbe, dispatch, leads, onDrop }: Props) {
   const s = state
   const f = s.scenario.fault
   const termFault = f === 'termination' && !s.faultCleared
@@ -171,6 +173,7 @@ function Interior({ state, onProbe, dispatch }: Props) {
       <Hotspot x={190} y={520} w={160} h={30} label={unb ? 'Bolt feeders back on' : 'Unbolt feeder lugs'} onClick={() => dispatch({ type: 'unboltFeeders', unbolted: !unb })} />
       <Hotspot x={600} y={520} w={150} h={30} label={unb && !cleared ? 'Support lugs clear' : s.jbox.wyeOpen ? 'Reinstall wye bar' : 'Remove wye bar'} onClick={() => (unb && !cleared ? dispatch({ type: 'clearLugs' }) : dispatch({ type: 'wye', open: !s.jbox.wyeOpen }))} />
       <Hotspot x={760} y={520} w={130} h={30} label="Reinstall cover" onClick={() => dispatch({ type: 'cover', off: false })} />
+      <LeadLayer leads={leads} height={600} onDrop={onDrop} />
     </svg>
   )
 }

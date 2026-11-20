@@ -89,9 +89,9 @@ export function MeggerS1({ state, dispatch }: Props) {
         <div className="mg-panel">
           <div className="mg-terms">
             <span className="mg-warn">⚠</span>
-            <div className={`mg-term red ${m.plus ? 'used' : ''}`}><i /><b>+</b></div>
+            <button type="button" className={`mg-term red ${m.leads.plus ? 'on' : ''}`} title={m.leads.plus ? 'Disconnect the red + lead' : 'Connect the red + lead'} onClick={() => dispatch({ type: 'meggerJack', term: 'plus', on: !m.leads.plus })}><i /><b>+</b></button>
             <div className="mg-term blue"><i /><b>GUARD</b></div>
-            <div className="mg-term black" ><i /><b>−</b></div>
+            <button type="button" className={`mg-term black ${m.leads.minus ? 'on' : ''}`} title={m.leads.minus ? 'Disconnect the black − lead' : 'Connect the black − lead'} onClick={() => dispatch({ type: 'meggerJack', term: 'minus', on: !m.leads.minus })}><i /><b>−</b></button>
             <span className="mg-cat">CAT IV<br />600V</span>
             <span className="mg-warn">⚡</span>
           </div>
@@ -170,14 +170,14 @@ export function MeggerS1({ state, dispatch }: Props) {
       </div>
 
       <div className="f789-leads">
-        <div><span className="lead-b">− black</span> {m.minus ? POINT_LABEL[m.minus] : '—'}</div>
-        <div><span className="lead-a">+ red</span> {m.plus ? POINT_LABEL[m.plus] : '—'}</div>
+        <div><span className="lead-b">− black</span> {!m.leads.minus ? 'not connected' : m.minus ? POINT_LABEL[m.minus] : 'free'}</div>
+        <div><span className="lead-a">+ red</span> {!m.leads.plus ? 'not connected' : m.plus ? POINT_LABEL[m.plus] : 'free'}</div>
         <button onClick={() => dispatch({ type: 'meggerClear' })}>Lift leads</button>
         {live && <button onClick={() => dispatch({ type: 'wait', minutes: 1 })}>⏩ 1 min</button>}
       </div>
       <p className="muted small">
         {off && 'Turn the voltage knob to a test voltage. IEEE 43: 2.5 kV for a 4160 V winding; 5 kV is the ceiling.'}
-        {!off && 'With the Megger tab open, tapping a point in the scene connects the − lead (conductor under test) first, then the + lead (earth). TEST starts and stops. IR runs until stopped; IR(t) and DAR run 60 s; PI runs 10 min and reports R10min/R1min. Good insulation climbs during the test; wet or faulted insulation stays flat.'}
+        {!off && 'Connect the leads at the + and − terminals, then drag the − tip onto the conductor under test and the + tip to earth. TEST starts and stops. IR runs until stopped; IR(t) and DAR run 60 s; PI runs 10 min and reports R10min/R1min. Good insulation climbs during the test; wet or faulted insulation stays flat.'}
       </p>
     </div>
   )

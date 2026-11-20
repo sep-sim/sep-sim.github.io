@@ -45,7 +45,6 @@ export function Fluke789Elec({ state, dispatch }: Props) {
   if (liveWarn && (m.mode === 'VAC' || m.mode === 'VDC')) ann.push('⚡ LIVE')
   const held = m.held != null
   if (held) primary = m.held!.split(' ')[0]
-  const redJack = off ? null : m.mode === 'LOOP' ? 'A' : m.mode === 'mA' || out ? 'mA' : 'V'
 
   return (
     <Fluke789Face
@@ -61,17 +60,18 @@ export function Fluke789Elec({ state, dispatch }: Props) {
       outputMode={out}
       onMode={(mode) => dispatch({ type: 'meterMode', mode })}
       onKey={(key) => dispatch({ type: 'meterKey', key })}
-      redJack={redJack}
+      jacks={m.jacks}
+      onJack={(jack, on) => dispatch({ type: 'meterJack', jack, on })}
       leads={
         <>
-          <div><span className="lead-a">Red</span> {m.probeA ? POINT_LABEL[m.probeA] : '—'}</div>
-          <div><span className="lead-b">Black</span> {m.probeB ? POINT_LABEL[m.probeB] : '—'}</div>
+          <div><span className="lead-a">Red</span> {m.jacks.red == null ? 'not plugged in' : m.probeA ? POINT_LABEL[m.probeA] : 'free'}</div>
+          <div><span className="lead-b">Black</span> {!m.jacks.black ? 'not plugged in' : m.probeB ? POINT_LABEL[m.probeB] : 'free'}</div>
           <button onClick={() => dispatch({ type: 'meterClear' })}>Lift leads</button>
         </>
       }
       hint={
         <>
-          {off && 'Turn the knob. With this tab open, tapping two points in the scene places red then black.'}
+          {off && 'Turn the knob. Plug the black lead into COM and the red lead into Ω V, then drag the probe tips from the bottom left of the scene onto the test points.'}
           {(m.mode === 'VAC' || m.mode === 'VDC') && 'Prove the meter on the 120 V receptacle before and after testing. It is for the 480 V aux bucket and the 120 V control strip only: CAT III 1000 V has no business on the 4160 V side, that is the TIC 300 PRO.'}
           {m.mode === 'mVDC' && 'Millivolt range. Anything over 300 mV reads OL here.'}
           {m.mode === 'OHM' && 'Continuity and resistance. Not an insulation test; use the Megger.'}

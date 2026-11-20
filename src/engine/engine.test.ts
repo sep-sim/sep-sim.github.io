@@ -262,4 +262,20 @@ describe('scenarios can each be solved to a perfect score', () => {
     // device ranged 0–1000, so 250 psig → 8 mA, and the HMI (0–500) shows 125
     expect(sol.current).toBeCloseTo(8, 5)
   })
+
+  describe('dragged leads', () => {
+    it('the 789 reads only with both leads plugged and the red lead in the right jack', () => {
+      const base = run(createSession(byId('jb-loose')), { type: 'meterMode', mode: 'VDC' })
+      const unplugged = run(base, { type: 'probe', node: 'TB_1', lead: 'red' })
+      expect(unplugged.meter.probeA).toBeNull()
+      const wrong = run(base, { type: 'meterJack', jack: 'COM', on: true }, { type: 'meterJack', jack: 'mA', on: true }, { type: 'probe', node: 'TB_1', lead: 'red' })
+      expect(wrong.meter.probeA).toBeNull()
+      expect(wrong.log.at(-1)?.text).toContain('LEAd')
+      const ok = run(base, { type: 'meterJack', jack: 'COM', on: true }, { type: 'meterJack', jack: 'V', on: true }, { type: 'probe', node: 'TB_2', lead: 'black' }, { type: 'probe', node: 'TB_1', lead: 'red' })
+      expect(ok.meter.probeA).toBe('TB_1')
+      expect(ok.meter.probeB).toBe('TB_2')
+      expect(ok.log.at(-1)?.kind).toBe('measure')
+      expect(run(ok, { type: 'meterLift', lead: 'red' }).meter.probeA).toBeNull()
+    })
+  })
 })

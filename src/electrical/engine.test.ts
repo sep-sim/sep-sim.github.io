@@ -20,6 +20,7 @@ const meg = (a: Point, b: Point): Action[] => [
   { type: 'meggerTest' }, { type: 'wait', minutes: 1 }, { type: 'meggerTest' },
 ]
 const ir = (s: ElecState, a: Point, b: Point) => insulationTest(s, a, b, 2500)
+const PLUG_V: Action[] = [{ type: 'meterJack', jack: 'COM', on: true }, { type: 'meterJack', jack: 'V', on: true }]
 const LOCK_ALL: Action[] = (['mv', 'bypass', 'aux', 'ctrl'] as const).flatMap((t) => [{ type: 'lock', target: t, on: true } as Action, { type: 'tag', target: t, on: true } as Action])
 const OPEN_ALL: Action[] = (['mv', 'bypass', 'aux', 'ctrl'] as const).map((t) => ({ type: 'switch', target: t, closed: false }) as Action)
 
@@ -256,5 +257,32 @@ describe('full work orders', () => {
     expect(ids).toContain('locks_early')
     expect(ids).toContain('run_not_restored')
     expect(s.drive.display).toBe('OPEN CIRCUIT')
+  })
+
+  describe('dragged leads', () => {
+    it('a dragged 789 lead needs both leads plugged in and the red lead in the jack the position uses', () => {
+      const base = run(createElecSession(byId('term-fault')), ...FULL_PPE, { type: 'meterMode', mode: 'VAC' })
+      const unplugged = run(base, { type: 'probe', point: 'RECEPT_H', lead: 'red' })
+      expect(unplugged.meter.probeA).toBeNull()
+      expect(unplugged.log.at(-1)?.text).toContain('Plug both leads')
+      const wrong = run(base, { type: 'meterJack', jack: 'COM', on: true }, { type: 'meterJack', jack: 'mA', on: true }, { type: 'probe', point: 'RECEPT_H', lead: 'red' })
+      expect(wrong.meter.probeA).toBeNull()
+      expect(wrong.log.at(-1)?.text).toContain('LEAd')
+      const ok = run(base, ...PLUG_V, { type: 'probe', point: 'RECEPT_H', lead: 'red' }, { type: 'probe', point: 'RECEPT_N', lead: 'black' })
+      expect(ok.proofs).toHaveLength(1)
+      const lifted = run(ok, { type: 'meterLift', lead: 'black' })
+      expect(lifted.meter.probeA).toBe('RECEPT_H')
+      expect(lifted.meter.probeB).toBeNull()
+    })
+
+    it('a dragged Megger lead must be connected at the terminal first', () => {
+      const base = run(createElecSession(byId('term-fault')), ...FULL_PPE, { type: 'goto', scene: 'compartment' }, { type: 'door', open: true }, { type: 'meggerMode', mode: 'IR' })
+      const loose = run(base, { type: 'meggerLead', lead: 'minus', point: 'U', drag: true })
+      expect(loose.megger.minus).toBeNull()
+      expect(loose.log.at(-1)?.text).toContain('Connect the − lead')
+      const on = run(base, { type: 'meggerJack', term: 'minus', on: true }, { type: 'meggerLead', lead: 'minus', point: 'U', drag: true })
+      expect(on.megger.minus).toBe('U')
+      expect(run(on, { type: 'meggerLift', lead: 'minus' }).megger.minus).toBeNull()
+    })
   })
 })

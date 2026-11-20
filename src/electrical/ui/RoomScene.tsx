@@ -3,6 +3,7 @@ import { chargeLampOn, relayLit } from '../engine'
 import type { ElecState, LockTarget } from '../types'
 import type { SceneProps } from './common'
 import { Hotspot, TP } from './common'
+import { LeadLayer } from '../../components/LeadLayer'
 import bucketImg from './assets/bucket480.jpg'
 
 interface Props extends SceneProps {
@@ -67,7 +68,7 @@ function Volts({ x, y, text, w = 46 }: { x: number; y: number; text: string; w?:
   )
 }
 
-export function RoomScene({ state, onProbe, dispatch, onLabel }: Props) {
+export function RoomScene({ state, onProbe, dispatch, onLabel, leads, onDrop }: Props) {
   const s = state
   const lit = relayLit(s)
   return (
@@ -295,6 +296,7 @@ export function RoomScene({ state, onProbe, dispatch, onLabel }: Props) {
 
       <Hotspot x={760} y={510} w={170} h={36} label="Walk to P-310 motor →" onClick={() => dispatch({ type: 'goto', scene: 'motor' })} />
       <text x="40" y="520" className="scene-note" style={{ fill: '#d8dbdf' }}>Arc flash boundary from the label is {s.scenario.label.arcFlashBoundary} in. Anyone inside it needs the PPE.</text>
+      <LeadLayer leads={leads} height={600} onDrop={onDrop} />
     </svg>
   )
 }
