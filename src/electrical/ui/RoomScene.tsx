@@ -238,7 +238,7 @@ export function RoomScene({ state, onProbe, dispatch, onLabel, leads, onDrop, ov
           <text x="664" y="270" textAnchor="middle" style={{ fontSize: 5, fontWeight: 800, fill: lit ? '#1c2a1c' : '#444' }}>{lit ? s.drive.display : ''}</text>
           <text x="664" y="280" textAnchor="middle" style={{ fontSize: 3.8, fill: lit ? '#2f4a2f' : '#444' }}>{lit ? (s.drive.faulted ? s.scenario.drive.faultText : 'P-310 · 4160 V · ' + (s.drive.running ? '394 A' : '0 A')) : ''}</text>
           {Array.from({ length: 8 }, (_, i) => <circle key={i} cx={644 + (i % 4) * 11} cy={300 + Math.floor(i / 4) * 10} r="2.2" fill={lit ? (i === 0 ? '#3ddc84' : i === 1 && s.drive.faulted ? '#ff2d2d' : '#3a3d42') : '#2a2d33'} />)}
-          <text x="664" y="324" textAnchor="middle" style={{ fontSize: 4, fill: '#aaa' }}>GE Multilin 469</text>
+          <text x="664" y="324" textAnchor="middle" style={{ fontSize: 4, fill: '#aaa' }}>MPR</text>
           <title>Motor protection relay. Use the Relay tab to START, STOP and RESET.</title>
         </g>
         <circle cx="712" cy="262" r="6" fill="#e03b3b" stroke="#333" /><circle cx="736" cy="262" r="6" fill={s.drive.running ? '#2fd36d' : '#1f8f3e'} stroke="#333" />

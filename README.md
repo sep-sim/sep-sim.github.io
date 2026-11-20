@@ -32,7 +32,7 @@ Open http://localhost:5173.
 
 A Toshiba JK-series medium voltage controller (power isolation switch, VFD, bypass, output isolation contactor) on a
 4000 HP, 4160 V pump motor, with an Allen-Bradley CENTERLINE 2100 480 V MCC feeding the drive auxiliaries and 120 V
-control from a panelboard. The Multilin trips on 50G ground fault. Scenes are drawn as places: the electrical room, the
+control from a panelboard. The MPR trips on 50G ground fault. Scenes are drawn as places: the electrical room, the
 M12 motor connection compartment, the motor on its pad and the inside of its six-lead terminal box.
 
 - Arc flash label on the controller; the technician dresses a worker figure and confirms the kit against it before any lockout step

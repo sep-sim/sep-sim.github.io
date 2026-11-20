@@ -796,7 +796,7 @@ export function reduceElec(s: ElecState, a: Action): ElecState {
       }
       if (t === 'bypass') return log(next, 'action', a.closed ? 'M12 bypass isolation switch closed: 4160 V on the bypass stabs.' : 'M12 bypass isolation switch opened. Blades visible open. Bypass stabs dead.')
       if (t === 'aux') return log(next, 'action', a.closed ? 'CENTERLINE bucket 3B closed: drive cooling fans and CPT energized.' : 'CENTERLINE bucket 3B handle to OFF. Cooling fans spinning down, CPT dead.')
-      return log(next, 'action', a.closed ? 'LP-1 ckt 7 closed. 120 V control circuit live, M32 isolation contactor coil energized.' : 'LP-1 ckt 7 opened. 120 V control dead, M32 isolation contactor dropped out, Multilin dark.')
+      return log(next, 'action', a.closed ? 'LP-1 ckt 7 closed. 120 V control circuit live, M32 isolation contactor coil energized.' : 'LP-1 ckt 7 opened. 120 V control dead, M32 isolation contactor dropped out, MPR dark.')
     }
     case 'lock': {
       const t = a.target
@@ -816,7 +816,7 @@ export function reduceElec(s: ElecState, a: Action): ElecState {
     }
     case 'tryStart': {
       if (lockedOut(s)) {
-        return log({ ...requireSuit(s, 'ppe_before_loto'), tryStepDone: true }, 'action', 'Try-step: none of the four handles will move with the locks on. START pressed on the relay door: no response, Multilin dark. Equipment cannot be restarted.')
+        return log({ ...requireSuit(s, 'ppe_before_loto'), tryStepDone: true }, 'action', 'Try-step: none of the four handles will move with the locks on. START pressed on the relay door: no response, MPR dark. Equipment cannot be restarted.')
       }
       if (!s.closed.mv && !s.locks.mv) {
         let next = violate(s, 'reenergized')
@@ -826,11 +826,11 @@ export function reduceElec(s: ElecState, a: Action): ElecState {
       return log(s, 'warn', 'Try-step before every source is open and locked proves nothing. Four sources: MV incoming, bypass, 480 V aux, 120 V control.')
     }
     case 'relay': {
-      if (!relayLit(s)) return log(s, 'info', 'Multilin is dark, no control power.')
+      if (!relayLit(s)) return log(s, 'info', 'MPR is dark, no control power.')
       if (a.key === 'STOP') return log({ ...s, drive: { ...s.drive, running: false, display: s.drive.faulted ? s.scenario.drive.faultCode : 'STOPPED' } }, 'action', 'STOP pressed.')
       if (a.key === 'RESET') {
         if (!s.drive.faulted) return s
-        return log({ ...s, drive: { ...s.drive, faulted: false, display: 'READY' } }, 'action', 'Multilin RESET: 86 lockout cleared, drive READY.')
+        return log({ ...s, drive: { ...s.drive, faulted: false, display: 'READY' } }, 'action', 'MPR RESET: 86 lockout cleared, drive READY.')
       }
       if (!s.closed.mv) return log(s, 'info', 'START pressed: no 4160 V incoming, drive will not start.')
       if (s.drive.faulted) return log(s, 'info', `START pressed: ${s.scenario.drive.faultCode} standing, reset required.`)
