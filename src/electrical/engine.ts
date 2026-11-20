@@ -739,6 +739,7 @@ export function reduceElec(s: ElecState, a: Action): ElecState {
       const t = a.target
       if (a.closed === s.closed[t]) return s
       if (s.locks[t]) return log(s, 'warn', `${targetLabel(t)}: handle will not move, locked.`)
+      if (t === 'aux' && a.closed && s.auxDoorOpen) return log(s, 'warn', 'Bucket 3B door interlock: the handle will not go to ON with the door open. Close and latch the door first.')
       let next = requireSuit(s, 'ppe_before_loto')
       next = { ...next, closed: { ...next.closed, [t]: a.closed } }
       if (!a.closed) next = { ...next, done: { ...next.done, [t]: { ...next.done[t], opened: true } } }
@@ -803,10 +804,9 @@ export function reduceElec(s: ElecState, a: Action): ElecState {
     }
     case 'auxDoor': {
       if (a.open === s.auxDoorOpen) return s
-      let next = s
-      if (a.open && s.closed.aux) next = requireSuit(next, 'ppe_door')
-      next = { ...next, auxDoorOpen: a.open }
-      return log(next, 'action', a.open ? 'Opened CENTERLINE bucket 3B.' : 'Closed CENTERLINE bucket 3B.')
+      // mechanical door interlock on the combination starter: the door latches stay engaged while the handle is ON
+      if (a.open && s.closed.aux) return log(s, 'warn', 'Bucket 3B door interlock: the disconnect handle is ON, the door latches will not release. Turn the handle to OFF first.')
+      return log({ ...s, auxDoorOpen: a.open }, 'action', a.open ? 'Opened CENTERLINE bucket 3B. Handle OFF, interlock released.' : 'Closed and latched CENTERLINE bucket 3B.')
     }
     case 'meterMode':
       return { ...s, meter: { ...s.meter, mode: a.mode, probeA: null, probeB: null, held: null, rel: null } }

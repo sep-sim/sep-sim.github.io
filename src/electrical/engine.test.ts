@@ -122,9 +122,21 @@ describe('LOTO and verification', () => {
   })
 
   it('TIC on a 480 V point records nothing and states the rule once', () => {
-    const s = run(createElecSession(byId('term-fault')), ...FULL_PPE, { type: 'ticPower', on: true }, { type: 'auxDoor', open: true }, ...tic('AUX_T1', 'AUX_T2'))
+    const s = run(createElecSession(byId('term-fault')), ...FULL_PPE, { type: 'ticPower', on: true }, { type: 'switch', target: 'aux', closed: false }, { type: 'auxDoor', open: true }, ...tic('AUX_T1', 'AUX_T2'))
     expect(s.deadTests).toHaveLength(0)
     expect(s.log.filter((l) => l.text.includes('over 1,000 V'))).toHaveLength(1)
+  })
+
+  it('bucket 3B door interlock: no door with the handle ON, no handle ON with the door open', () => {
+    const shut = run(createElecSession(byId('term-fault')), ...FULL_PPE, { type: 'auxDoor', open: true })
+    expect(shut.auxDoorOpen).toBe(false)
+    expect(shut.log.at(-1)?.text).toContain('interlock')
+    const open = run(shut, { type: 'switch', target: 'aux', closed: false }, { type: 'auxDoor', open: true })
+    expect(open.auxDoorOpen).toBe(true)
+    const stillOff = run(open, { type: 'switch', target: 'aux', closed: true })
+    expect(stillOff.closed.aux).toBe(false)
+    expect(stillOff.log.at(-1)?.text).toContain('interlock')
+    expect(run(open, { type: 'auxDoor', open: false }, { type: 'switch', target: 'aux', closed: true }).closed.aux).toBe(true)
   })
 
   it('the textbook path reaches an electrically safe work condition with both instruments proved', () => {

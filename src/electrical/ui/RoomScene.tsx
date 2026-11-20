@@ -116,6 +116,7 @@ export function RoomScene({ state, onProbe, dispatch, onLabel }: Props) {
                 <g className="hotspot" onClick={() => dispatch({ type: 'auxDoor', open: !s.auxDoorOpen })}>
                   <rect x="156" y={y + 70} width="92" height="20" rx="4" />
                   <text x="202" y={y + 84} textAnchor="middle">{s.auxDoorOpen ? 'close bucket' : 'open bucket'}</text>
+                  <title>{s.closed.aux && !s.auxDoorOpen ? 'Door interlock: handle must be OFF before the door opens' : s.auxDoorOpen ? 'Close and latch the door' : 'Release the latches and open the door'}</title>
                 </g>
               )}
             </g>
@@ -157,7 +158,7 @@ export function RoomScene({ state, onProbe, dispatch, onLabel }: Props) {
           {/* rotary disconnect handle on the right flange operates the bucket */}
           <g className="hotspot-g" onClick={() => dispatch({ type: 'switch', target: 'aux', closed: !s.closed.aux })}>
             <rect x="364" y="250" width="62" height="160" fill="#fff" fillOpacity="0.02" stroke="#f5a524" strokeDasharray="4 3" />
-            <title>{s.closed.aux ? 'Rotate the disconnect handle to OFF' : 'Rotate the disconnect handle to ON'}</title>
+            <title>{s.closed.aux ? 'Rotate the disconnect handle to OFF' : 'Door interlock: handle stays OFF until the door is closed'}</title>
           </g>
           <text x="395" y="420" textAnchor="middle" className="hint">handle · {s.closed.aux ? 'ON' : 'OFF'}</text>
           <g className="hotspot-g" onClick={() => dispatch({ type: 'lock', target: 'aux', on: !s.locks.aux })}>
