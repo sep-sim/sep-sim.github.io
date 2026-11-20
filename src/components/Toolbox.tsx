@@ -7,7 +7,7 @@ import { hmiReading } from '../engine/loop'
 import { Fluke789 } from './Fluke789'
 import { Trex } from './Trex'
 
-export type ToolTab = 'hmi' | 'meter' | 'hart' | 'manifold' | 'prework' | 'closeout'
+export type ToolTab = 'hmi' | 'meter' | 'hart' | 'manifold' | 'scenario' | 'jsa' | 'closeout'
 
 interface Props {
   state: SessionState
@@ -19,7 +19,8 @@ interface Props {
 
 export function Toolbox({ state, sol, dispatch, tab, setTab }: Props) {
   const tabs: { id: ToolTab; label: string }[] = [
-    { id: 'prework', label: 'Pre-work' },
+    { id: 'scenario', label: 'Scenario' },
+    { id: 'jsa', label: 'JSA' },
     { id: 'hmi', label: 'HMI' },
     { id: 'meter', label: 'Fluke 789' },
     { id: 'hart', label: 'Trex' },
@@ -34,7 +35,8 @@ export function Toolbox({ state, sol, dispatch, tab, setTab }: Props) {
         ))}
       </div>
       <div className="tab-body">
-        {tab === 'prework' && <Prework state={state} dispatch={dispatch} />}
+        {tab === 'scenario' && <ScenarioPanel state={state} />}
+        {tab === 'jsa' && <Jsa state={state} dispatch={dispatch} />}
         {tab === 'hmi' && <Hmi state={state} sol={sol} />}
         {tab === 'meter' && <Fluke789 state={state} sol={sol} dispatch={dispatch} />}
         {tab === 'hart' && <Trex state={state} sol={sol} dispatch={dispatch} />}
@@ -45,17 +47,41 @@ export function Toolbox({ state, sol, dispatch, tab, setTab }: Props) {
   )
 }
 
-function Prework({ state, dispatch }: { state: SessionState; dispatch: (a: Action) => void }) {
+const JSA_STEPS: { step: string; hazards: string; controls: string }[] = [
+  { step: 'Coordinate with the controller', hazards: 'Process upset or ESD trip from a point under test; nuisance alarms', controls: 'Call the controller before touching PT-101. Point in maintenance, alarms inhibited, no trip hanging on it. Call again before returning it to service.' },
+  { step: 'Enter the Class I Div 2 area', hazards: 'Ignition of a flammable atmosphere by a meter or communicator', controls: 'Gas test and work permit. Intrinsically safe communicator; no enclosure opened without a clean gas reading.' },
+  { step: 'Open enclosures and take readings', hazards: 'Loop interruption while probing; 120 V in the RTU cabinet next to the 24 V loop', controls: 'Identify the 24 VDC loop terminals before landing leads. Lift a wire only with the point inhibited. Keep leads clear of the 120 V side of the cabinet.' },
+  { step: 'Manifold and impulse line work', hazards: 'Trapped line pressure; process release at the bleed', controls: 'Close the isolation valve before the bleed. Bleed to a safe location, face away from the vent. Gauge the trapped pressure before opening fittings.' },
+  { step: 'Repair and return to service', hazards: 'Point returned with a wrong range or still inhibited', controls: 'Verify the reading against PG-101 and the controller\'s display. Range and alarms confirmed with the controller before leaving.' },
+]
+
+function Jsa({ state, dispatch }: { state: SessionState; dispatch: (a: Action) => void }) {
   return (
     <div>
-      <p className="muted">Complete before the first hands-on action. Order does not matter.</p>
+      <p className="muted">Job safety analysis for this work order. Review the steps, then sign off the pre-job items before the first hands-on action.</p>
+      <table className="kv jsa">
+        <thead><tr><th>Job step</th><th>Potential hazards</th><th>Controls</th></tr></thead>
+        <tbody>
+          {JSA_STEPS.map((r, i) => (
+            <tr key={i}><td>{i + 1}. {r.step}</td><td>{r.hazards}</td><td>{r.controls}</td></tr>
+          ))}
+        </tbody>
+      </table>
+      <h4>Pre-job sign-off</h4>
       {PREWORK_CHECKLIST.map((c) => (
         <label key={c.id} className="check">
           <input type="checkbox" checked={state.checklist[c.id]} onChange={() => dispatch({ type: 'checklist', id: c.id })} />
           <span>{c.label}</span>
         </label>
       ))}
-      <h4>Work order</h4>
+    </div>
+  )
+}
+
+function ScenarioPanel({ state }: { state: SessionState }) {
+  return (
+    <div>
+      <h4>{state.scenario.title}</h4>
       <p>{state.scenario.workOrder}</p>
       <h4>Loop data</h4>
       <table className="kv">

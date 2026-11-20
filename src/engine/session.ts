@@ -319,7 +319,7 @@ export function reduce(s: SessionState, a: Action): SessionState {
     case 'checklist': {
       const next = { ...s, checklist: { ...s.checklist, [a.id]: !s.checklist[a.id] } }
       const item = PREWORK_CHECKLIST.find((c) => c.id === a.id)
-      return next.checklist[a.id] ? log(next, 'info', `Pre-work: ${item?.label}`) : next
+      return next.checklist[a.id] ? log(next, 'info', `JSA sign-off: ${item?.label}`) : next
     }
     case 'meterMode':
       return setMeter(s, { mode: a.mode, probeA: null, probeB: null, held: null, rel: null, minMax: 'off', rampDir: 1 })

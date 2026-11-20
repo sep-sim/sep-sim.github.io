@@ -8,19 +8,58 @@ import { PPE_CATEGORIES } from './ppeCategories'
 
 interface P { state: ElecState; dispatch: (a: Action) => void }
 
-export function Prework({ state, dispatch }: P) {
-  const l = state.scenario.label
+/** Job safety analysis for the VFD ground fault job: steps, what can hurt you, and the controls. */
+const JSA_STEPS: { step: string; hazards: string; controls: string }[] = [
+  { step: 'Approach the controller and read the arc flash label', hazards: 'Arc flash and shock at 4160 V; energized switchgear in the room', controls: 'Stay outside the arc flash boundary until dressed. Read incident energy, boundaries and glove class off the M12/M22 label. Brief the second person.' },
+  { step: 'Dress in the PPE the label calls for', hazards: 'Arc rating short of the incident energy; wrong glove class', controls: 'Arc flash suit and hood rated above the label, class 2 rubber gloves with leather protectors, hard hat, safety glasses, hearing protection, leather boots. Confirm the kit against the label before any switching.' },
+  { step: 'Isolate every source and apply locks and tags', hazards: 'Arc flash while operating the isolation switches; a source missed on the one-line', controls: 'Operate switches in full PPE, standing to the hinge side. Open 4160 V VFD incoming, 4160 V bypass, 480 V aux bucket and 120 V control. Personal lock and danger tag on each. Try-step at the Multilin.' },
+  { step: 'Let the drive cells discharge', hazards: 'Stored energy in the drive capacitors', controls: 'Wait the 15 minutes Toshiba calls for after the power isolation switch opens. CHARGE lamps out before any compartment is entered.' },
+  { step: 'Verify absence of voltage', hazards: 'Unexpected voltage from a back-feed or a missed source; a detector that has quietly failed', controls: 'Live-dead-live. TIC 300 PRO on the hot stick, HIGH range, at every 4160 V conductor; Fluke 789 by contact on the 480 V and 120 V points. Prove each instrument on the 120 V receptacle before and after.' },
+  { step: 'Lift the motor leads and insulation test', hazards: 'Test voltage back into the drive cells; residual charge on the winding after the test', controls: 'U, V, W lifted from the connection bus and on insulated stands. 120 V control locked out so the M32 contactor cannot pull in. 2.5 kV test, discharge the winding through the tester before touching it.' },
+  { step: 'Open the terminal box and localize the fault', hazards: 'Residual charge; pinch points at the lugs and wye bar; wet enclosure', controls: 'Discharge before touching. Gloves on for the bolted connections. Support cables while unbolting.' },
+  { step: 'Restore and return to service', hazards: 'Unexpected start with people at the motor; a lead left lifted', controls: 'Terminal box closed, leads re-landed and torqued, everyone clear of the motor and compartments, locks removed by their owners in reverse order, operations notified before the reset and start.' },
+]
+
+export function Jsa({ state, dispatch }: P) {
   return (
     <div>
-      <p className="muted">Complete before approaching the equipment.</p>
+      <p className="muted">Job safety analysis for this work order. Review the steps, then sign off the pre-job items before approaching the equipment.</p>
+      <table className="kv jsa">
+        <thead><tr><th>Job step</th><th>Potential hazards</th><th>Controls</th></tr></thead>
+        <tbody>
+          {JSA_STEPS.map((r, i) => (
+            <tr key={i}><td>{i + 1}. {r.step}</td><td>{r.hazards}</td><td>{r.controls}</td></tr>
+          ))}
+        </tbody>
+      </table>
+      <h4>Pre-job sign-off</h4>
       {CHECKLIST.map((c) => (
         <label key={c.id} className="check">
           <input type="checkbox" checked={state.checklist[c.id]} onChange={() => dispatch({ type: 'checklist', id: c.id })} />
           <span>{c.label}</span>
         </label>
       ))}
-      <h4>Work order</h4>
-      <p>{state.scenario.workOrder}</p>
+    </div>
+  )
+}
+
+export function Scenario({ state }: P) {
+  const l = state.scenario.label
+  const sc = state.scenario
+  return (
+    <div>
+      <h4>{sc.title}</h4>
+      <p>{sc.workOrder}</p>
+      <h4>Equipment</h4>
+      <table className="kv">
+        <tbody>
+          <tr><td>Drive</td><td>{sc.drive.model}</td></tr>
+          <tr><td>Protection</td><td>{sc.drive.relay}</td></tr>
+          <tr><td>Trip</td><td>{sc.drive.faultCode}: {sc.drive.faultText}</td></tr>
+          <tr><td>Motor</td><td>{sc.motor.tag}: {sc.motor.hp} HP, {sc.motor.volts} V, {sc.motor.fla} A FLA, {sc.motor.rpm} rpm, frame {sc.motor.frame}, 6-lead wye, form-wound</td></tr>
+          <tr><td>Insulation test</td><td>{sc.megVolts.min / 1000} kV per IEEE 43, {sc.megVolts.max / 1000} kV ceiling</td></tr>
+        </tbody>
+      </table>
       <h4>One-line E-310 (excerpt)</h4>
       <table className="kv">
         <tbody>
@@ -29,8 +68,7 @@ export function Prework({ state, dispatch }: P) {
           <tr><td>480 V aux</td><td>CENTERLINE 2100 bucket 3B → drive cooling fans, control power transformer</td></tr>
           <tr><td>120 V control</td><td>LP-1 ckt 7 → Multilin 469, M32 coil, drive enable</td></tr>
           <tr><td>Stored energy</td><td>Drive cell capacitors. CHARGE lamps on the cell cabinet. Toshiba: wait 15 min after the isolation switch opens.</td></tr>
-          <tr><td>Motor</td><td>{state.scenario.motor.tag}: {state.scenario.motor.hp} HP, {state.scenario.motor.volts} V, {state.scenario.motor.fla} A, 6-lead wye, form-wound</td></tr>
-          <tr><td>Label</td><td>{state.labelRead ? `${l.incidentEnergy} cal/cm², AFB ${l.arcFlashBoundary} in, glove class ${l.gloveClass}` : 'not read yet'}</td></tr>
+          <tr><td>Label</td><td>{state.labelRead ? `${l.incidentEnergy} cal/cm², AFB ${l.arcFlashBoundary} in, glove class ${l.gloveClass}` : 'not read yet: it is on the M12 door in the room'}</td></tr>
         </tbody>
       </table>
     </div>

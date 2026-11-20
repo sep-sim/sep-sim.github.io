@@ -13,16 +13,16 @@ import { Fluke789Elec } from './Fluke789Elec'
 import { MeggerS1 } from './MeggerS1'
 import { TicTracer } from './TicTracer'
 import { ArcLabelModal } from './ArcLabel'
-import { Closeout, Loto, PpeLocker, Prework, Relay } from './Panels'
+import { Closeout, Jsa, Loto, PpeLocker, Relay, Scenario } from './Panels'
 import { WorkLog } from '../../components/WorkLog'
 import { LogDock } from '../../components/LogDock'
 import { useLogDock } from '../../components/useLogDock'
 
-type Tab = 'prework' | 'ppe' | 'loto' | 'tic' | 'dmm' | 'megger' | 'relay' | 'closeout'
+type Tab = 'scenario' | 'jsa' | 'ppe' | 'loto' | 'tic' | 'dmm' | 'megger' | 'relay' | 'closeout'
 
 export function ElecSim({ scenario, onExit }: { scenario: ElecScenario; onExit: () => void }) {
   const [state, dispatch] = useReducer(reduceElec, scenario, createElecSession)
-  const [tab, setTab] = useState<Tab>('prework')
+  const [tab, setTab] = useState<Tab>('scenario')
   const [label, setLabel] = useState(false)
   const { dock, setDock, simStyle } = useLogDock()
 
@@ -65,7 +65,7 @@ export function ElecSim({ scenario, onExit }: { scenario: ElecScenario; onExit: 
   const ppe = ppeCheck(state)
   const scenes: { id: Scene; label: string }[] = [{ id: 'room', label: 'Electrical room' }, { id: 'compartment', label: 'M12 compartment' }, { id: 'motor', label: 'P-310 motor' }]
   const tabs: { id: Tab; label: string }[] = [
-    { id: 'prework', label: 'Pre-work' }, { id: 'ppe', label: 'PPE' }, { id: 'loto', label: 'LOTO' },
+    { id: 'scenario', label: 'Scenario' }, { id: 'jsa', label: 'JSA' }, { id: 'ppe', label: 'PPE' }, { id: 'loto', label: 'LOTO' },
     { id: 'tic', label: 'TIC 300' }, { id: 'dmm', label: 'Fluke 789' }, { id: 'megger', label: 'Megger' }, { id: 'relay', label: 'Relay' }, { id: 'closeout', label: 'Close-out' },
   ]
 
@@ -128,7 +128,8 @@ export function ElecSim({ scenario, onExit }: { scenario: ElecScenario; onExit: 
               {tabs.map((t) => <button key={t.id} className={tab === t.id ? 'active' : ''} onClick={() => setTab(t.id)}>{t.label}</button>)}
             </div>
             <div className="tab-body">
-              {tab === 'prework' && <Prework state={state} dispatch={dispatch} />}
+              {tab === 'scenario' && <Scenario state={state} dispatch={dispatch} />}
+              {tab === 'jsa' && <Jsa state={state} dispatch={dispatch} />}
               {tab === 'ppe' && <PpeLocker state={state} dispatch={dispatch} />}
               {tab === 'loto' && <Loto state={state} dispatch={dispatch} />}
               {tab === 'tic' && <TicTracer state={state} dispatch={dispatch} />}

@@ -748,7 +748,7 @@ export function reduceElec(s: ElecState, a: Action): ElecState {
     case 'checklist': {
       const next = { ...s, checklist: { ...s.checklist, [a.id]: !s.checklist[a.id] } }
       const item = CHECKLIST.find((c) => c.id === a.id)
-      return next.checklist[a.id] ? log(next, 'info', `Pre-work: ${item?.label}`) : next
+      return next.checklist[a.id] ? log(next, 'info', `JSA sign-off: ${item?.label}`) : next
     }
     case 'goto': {
       if (a.scene === s.scene) return s

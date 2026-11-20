@@ -19,7 +19,7 @@ function Sim({ scenario, onExit }: { scenario: Scenario; onExit: () => void }) {
   const [state, dispatch] = useReducer(reduce, scenario, createSession)
   const sol = useMemo(() => solveLoop(state), [state])
   const { dock, setDock, simStyle } = useLogDock()
-  const [tab, setTab] = useState<ToolTab>('prework')
+  const [tab, setTab] = useState<ToolTab>('scenario')
 
   useEffect(() => {
     const id = setInterval(() => dispatch({ type: 'tick' }), 1000)
@@ -103,7 +103,7 @@ function Menu({ onPick }: { onPick: (p: Pick) => void }) {
       <div className="menu-section">
         <h2>Instrumentation · 4-20 mA loop troubleshooting</h2>
         <p className="muted">
-          A pressure loop at a pump station. Each work order hides one fault. Pre-work, Fluke 789, AMS Trex, manifold, repair, prove it back in service.
+          A pressure loop at a pump station. Each work order hides one fault. Scenario and JSA, Fluke 789, AMS Trex, manifold, repair, prove it back in service.
         </p>
         <div className="row"><button className="primary" onClick={() => onPick({ kind: 'loop', s: pickRandomScenario() })}>Random work order</button></div>
         <div className="cards">
