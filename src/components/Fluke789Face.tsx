@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import type { MeterKey, MeterMode } from '../engine/types'
 import { METER_MODES } from '../engine/types'
 
@@ -40,6 +41,7 @@ export interface Fluke789FaceProps {
 /** The Fluke 789 ProcessMeter face: knob, dual LCD, keys and jacks. Pure presentation, shared by every module. */
 export function Fluke789Face(p: Fluke789FaceProps) {
   const off = p.mode === 'OFF'
+  const { root: fitRoot, body: fitBody, k: fitK, height: fitHeight } = useFitScale()
   const current = KNOB_789.find((k) => k.mode === p.mode)!
   const key = (k: MeterKey) => () => p.onKey(k)
   const nextMode = () => {
@@ -47,8 +49,9 @@ export function Fluke789Face(p: Fluke789FaceProps) {
     p.onMode(METER_MODES[(i + 1) % METER_MODES.length])
   }
   return (
-    <div className="f789">
-      <div className="f789-body">
+    <div className="f789" ref={fitRoot}>
+      <div className="f789-fit" style={{ height: fitHeight }}>
+      <div className="f789-body" ref={fitBody} style={{ transform: `scale(${fitK})` }}>
         <div className="f789-face">
           <div className="f789-brand">
             <span className="f789-logo">FLUKE</span>
@@ -134,9 +137,40 @@ export function Fluke789Face(p: Fluke789FaceProps) {
           </div>
         </div>
       </div>
+      </div>
 
       <div className="f789-leads">{p.leads}</div>
       <p className="muted small">{p.hint}</p>
     </div>
   )
+}
+
+/** Scale the meter body down so the whole face, leads and hint fit the tab without scrolling. */
+function useFitScale() {
+  const root = useRef<HTMLDivElement>(null)
+  const body = useRef<HTMLDivElement>(null)
+  const [k, setK] = useState(1)
+  const [height, setHeight] = useState<number | undefined>(undefined)
+  useLayoutEffect(() => {
+    const r = root.current
+    const b = body.current
+    const parent = r?.parentElement
+    if (!r || !b || !parent) return
+    const fit = () => {
+      const ps = getComputedStyle(parent)
+      const avail = parent.clientHeight - parseFloat(ps.paddingTop) - parseFloat(ps.paddingBottom)
+      const natural = b.offsetHeight
+      const wrap = b.parentElement!
+      const rest = r.offsetHeight - wrap.offsetHeight
+      const next = Math.max(0.55, Math.min(1, (avail - rest) / natural))
+      setK((prev) => (Math.abs(prev - next) < 0.005 ? prev : next))
+      setHeight(Math.round(natural * next))
+    }
+    fit()
+    const ro = new ResizeObserver(fit)
+    ro.observe(parent)
+    ro.observe(b)
+    return () => ro.disconnect()
+  }, [])
+  return { root, body, k, height }
 }

@@ -1,5 +1,7 @@
 /* ---------- Fluke 789 ProcessMeter ---------- */
 .f789 { display: grid; gap: 10px; }
+.f789-fit { display: flex; justify-content: center; align-items: flex-start; overflow: visible; }
+.f789-body { transform-origin: top center; width: 100%; }
 .f789-body {
   background: #f5b800; border-radius: 26px; padding: 14px 12px 16px;
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.55), inset 0 0 0 2px #c99400;
