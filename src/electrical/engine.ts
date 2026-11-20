@@ -42,6 +42,7 @@ export type Action =
   | { type: 'meggerTest' }
   | { type: 'ticPower'; on: boolean }
   | { type: 'ticRange'; range: TicRange }
+  | { type: 'ticHotStick'; on: boolean }
   | { type: 'ticSelfTest' }
   | { type: 'ticCheck'; point: Point }
   | { type: 'liftLeads'; lifted: boolean }
@@ -63,6 +64,7 @@ export const PENALTY: Record<string, { points: number; label: string }> = {
   dmm_on_mv: { points: -20, label: 'Contact meter rated CAT III 1000 V placed on 4160 V conductors' },
   tic_low_range_mv: { points: -5, label: 'TIC 300 PRO on LOW range at 4160 V: it picks up the adjacent live bus, HIGH is the range for MV' },
   tic_no_selftest: { points: -5, label: 'Non-contact detector used without a self-test first' },
+  tic_no_hotstick: { points: -10, label: 'TIC 300 PRO hand-held at a 4160 V conductor: inside the restricted approach boundary, the tracer goes on the hot stick' },
   no_prove_before: { points: -10, label: 'Absence-of-voltage test without proving the instrument on a known source first' },
   no_prove_after: { points: -10, label: 'Instrument not re-proved after testing dead' },
   work_not_verified: { points: -20, label: 'Hands on conductors before absence of voltage was verified' },
@@ -127,7 +129,7 @@ export function createElecSession(scenario: ElecScenario): ElecState {
     jbox: { coverOff: false, feedersUnbolted: false, lugsCleared: false, wyeOpen: false, inspected: false },
     meter: { mode: 'OFF', jacks: { red: null, black: false }, probeA: null, probeB: null, held: null, rel: null, manualRange: false, backlight: false },
     megger: { mode: 'OFF', volts: 500, leads: { plus: false, minus: false }, minus: null, plus: null, testing: false, tStart: null, result: null, inhibit: null },
-    tic: { on: false, range: 'LOW', selfTestAt: null, last: null },
+    tic: { on: false, range: 'LOW', hotStick: false, selfTestAt: null, last: null },
     proofs: [],
     deadTests: [],
     insTests: [],
@@ -291,17 +293,31 @@ function requiredRecords(s: ElecState): DeadTest[] {
   return s.deadTests.filter((d) => REQUIRED_DEAD.some((r) => satisfies(r, d)))
 }
 
-export function provedBefore(s: ElecState): boolean {
-  const req = requiredRecords(s)
+export type Instrument = 'tic' | 'dmm'
+/** Live-dead-live is per instrument: the one that made the dead records must have been proved before the first and after the last. */
+export function provedBeforeFor(s: ElecState, inst: Instrument): boolean {
+  const req = requiredRecords(s).filter((d) => d.instrument === inst)
   if (req.length === 0) return false
-  return s.proofs.some((t) => t <= req[0].t)
+  const first = Math.min(...req.map((d) => d.n))
+  return s.proofs.some((p) => p.instrument === inst && p.n < first)
 }
-
-export function provedAfter(s: ElecState): boolean {
-  const req = requiredRecords(s)
+export function provedAfterFor(s: ElecState, inst: Instrument): boolean {
+  const req = requiredRecords(s).filter((d) => d.instrument === inst)
   if (req.length === 0) return false
-  const last = Math.max(...req.map((d) => d.t))
-  return s.proofs.some((t) => t >= last)
+  const last = Math.max(...req.map((d) => d.n))
+  return s.proofs.some((p) => p.instrument === inst && p.n > last)
+}
+function instrumentsUsed(s: ElecState): Instrument[] {
+  const used = new Set(requiredRecords(s).map((d) => d.instrument))
+  return (['tic', 'dmm'] as Instrument[]).filter((i) => used.has(i))
+}
+export function provedBefore(s: ElecState): boolean {
+  const used = instrumentsUsed(s)
+  return used.length > 0 && used.every((i) => provedBeforeFor(s, i))
+}
+export function provedAfter(s: ElecState): boolean {
+  const used = instrumentsUsed(s)
+  return used.length > 0 && used.every((i) => provedAfterFor(s, i))
 }
 
 export function lockedOut(s: ElecState): boolean {
@@ -583,7 +599,7 @@ function measure(s: ElecState): ElecState {
   const recept = (x: Point) => x.startsWith('RECEPT')
   if (recept(a) && recept(b)) {
     if (m.mode === 'VAC' && v.ac > 100) {
-      next = { ...next, proofs: [...next.proofs, next.t] }
+      next = { ...next, proofs: [...next.proofs, { t: next.t, n: next.tests, instrument: 'dmm' }] }
       return log(next, 'measure', `789 proved on known live source: ${POINT_LABEL[a]} → ${POINT_LABEL[b]} ${reading}`)
     }
     return log(next, 'measure', `789 ${m.mode === 'VAC' ? 'V AC' : 'V DC'} ${POINT_LABEL[a]} → ${POINT_LABEL[b]}: ${reading}`)
@@ -592,7 +608,7 @@ function measure(s: ElecState): ElecState {
   if (!verifiedDead(s)) next = requireSuit(next, 'ppe_test')
   const live = m.mode === 'VAC' ? v.ac > 30 : Math.abs(v.dc) > 30
   if (!live) {
-    const d: DeadTest = { a, b, mode: m.mode, t: next.t, instrument: 'dmm' }
+    const d: DeadTest = { a, b, mode: m.mode, t: next.t, n: next.tests, instrument: 'dmm' }
     next = { ...next, deadTests: [...next.deadTests, d] }
   }
   return log(next, 'measure', `789 ${m.mode === 'VAC' ? 'V AC' : 'V DC'} ${POINT_LABEL[a]} → ${POINT_LABEL[b]}: ${reading}${live ? '  ⚡ LIVE' : ''}`)
@@ -666,7 +682,17 @@ function ticCheck(s: ElecState, p: Point): ElecState {
   const detected = t.range === 'LOW' ? ac >= 30 || pickup : ac >= 1500
   let next: ElecState = { ...s, tic: { ...t, last: { point: p, detected, t: s.t } }, tests: s.tests + 1 }
   if (mv && !verifiedDead(s)) next = requireSuit(next, 'ppe_test')
-  next = log(next, 'measure', `TIC 300 PRO ${t.range} at ${POINT_LABEL[p]}: ${detected ? '⚡ tip flashing, beeper sounding – AC voltage present' : 'no indication'}${pickup && ac < 30 ? ' (proximity pickup from the live bus, not this conductor)' : ''}`)
+  if (mv && !t.hotStick && !next.violations.some((v) => v.id === 'tic_no_hotstick')) next = violate(next, 'tic_no_hotstick')
+  next = log(next, 'measure', `TIC 300 PRO ${t.range}${mv ? (t.hotStick ? ' on hot stick' : ' HAND-HELD') : ''} at ${POINT_LABEL[p]}: ${detected ? '⚡ tip flashing, beeper sounding – AC voltage present' : 'no indication'}${pickup && ac < 30 ? ' (proximity pickup from the live bus, not this conductor)' : ''}`)
+  if (p.startsWith('RECEPT')) {
+    // the 120 V receptacle is the known live source for the live-dead-live sequence, on LOW
+    if (t.range === 'LOW' && detected) {
+      next = { ...next, proofs: [...next.proofs, { t: next.t, n: next.tests, instrument: 'tic' }] }
+      return log(next, 'info', 'TIC 300 PRO proved on the 120 V receptacle, LOW range.')
+    }
+    if (t.range === 'HIGH') return log(next, 'info', 'HIGH range starts at 1.5 kV: a 120 V receptacle will not light it. Prove the tracer on LOW.')
+    return next
+  }
   if (!mv) {
     if (!next.log.some((l) => l.text.includes('over 1,000 V'))) {
       next = log(next, 'info', 'Site procedure: the TIC 300 PRO is the verification instrument on systems over 1,000 V. This point is low voltage: verify it with the Fluke 789 by contact.')
@@ -678,11 +704,10 @@ function ticCheck(s: ElecState, p: Point): ElecState {
     return next
   }
   if (detected) {
-    next = { ...next, proofs: [...next.proofs, next.t] }
-    return log(next, 'info', 'Live 4160 V indication: that counts as proving the detector.')
+    return log(next, 'info', 'Live 4160 V indication. The live-dead-live proof is the receptacle on LOW, before and after the dead checks.')
   }
   if (t.selfTestAt == null && !next.violations.some((v) => v.id === 'tic_no_selftest')) next = violate(next, 'tic_no_selftest')
-  const d: DeadTest = { a: p, b: 'GND', mode: 'VAC', t: next.t, instrument: 'tic' }
+  const d: DeadTest = { a: p, b: 'GND', mode: 'VAC', t: next.t, n: next.tests, instrument: 'tic' }
   return { ...next, deadTests: [...next.deadTests, d] }
 }
 
@@ -884,6 +909,9 @@ export function reduceElec(s: ElecState, a: Action): ElecState {
       return { ...s, tic: { ...s.tic, on: a.on, last: null } }
     case 'ticRange':
       return s.tic.on ? { ...s, tic: { ...s.tic, range: a.range, last: null } } : s
+    case 'ticHotStick':
+      if (a.on === s.tic.hotStick) return s
+      return log({ ...s, tic: { ...s.tic, hotStick: a.on, last: null } }, 'action', a.on ? 'Clipped the TIC 300 PRO to the hot stick.' : 'Took the TIC 300 PRO off the hot stick.')
     case 'ticSelfTest': {
       if (!s.tic.on) return log(s, 'warn', 'TIC 300 PRO is off.')
       return log({ ...s, tic: { ...s.tic, selfTestAt: s.t, last: null } }, 'action', 'TIC 300 PRO self-test: tip flashes, beeper sounds. Unit OK.')

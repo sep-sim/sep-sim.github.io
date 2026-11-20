@@ -1,5 +1,5 @@
 import type { Action } from '../engine'
-import { chargeLampOn, linkVolts, lockedOut, ppeCheck, relayLit, suitedUp, REQUIRED_DEAD, deadTestDone, provedBefore, provedAfter } from '../engine'
+import { chargeLampOn, linkVolts, lockedOut, ppeCheck, relayLit, suitedUp, REQUIRED_DEAD, deadTestDone, provedBeforeFor, provedAfterFor } from '../engine'
 import type { ElecState } from '../types'
 import { CHECKLIST, DIAGNOSES, LOCK_TARGETS, POINT_LABEL, PPE_ITEMS, REPAIRS } from '../types'
 import { Worker } from './Worker'
@@ -134,11 +134,12 @@ export function Loto({ state, dispatch }: P) {
       <button onClick={() => dispatch({ type: 'tryStart' })} disabled={!lockedOut(s)}>Attempt restart with all four locks on</button>
       {s.tryStepDone && <span className="pill ok" style={{ marginLeft: 8 }}>DONE</span>}
       <h4>Absence of voltage</h4>
-      <div className="small">Proved before: {provedBefore(s) ? '✓' : '—'} · re-proved after: {provedAfter(s) ? '✓' : '—'} · TIC self-test: {s.tic.selfTestAt != null ? '✓' : '—'}</div>
+      <div className="small">Live-dead-live · TIC on the receptacle (LOW): before {provedBeforeFor(s, 'tic') ? '✓' : '—'} · after {provedAfterFor(s, 'tic') ? '✓' : '—'} · self-test {s.tic.selfTestAt != null ? '✓' : '—'} · hot stick {s.tic.hotStick ? '✓' : '—'}</div>
+      <div className="small">789 on the receptacle: before {provedBeforeFor(s, 'dmm') ? '✓' : '—'} · after {provedAfterFor(s, 'dmm') ? '✓' : '—'}</div>
       <table className="kv">
         <tbody>
           {REQUIRED_DEAD.map((r) => (
-            <tr key={`${r.a}${r.b}`}><td>{r.label}</td><td>{r.instrument === 'tic' ? 'TIC 300 HIGH' : '789 V AC'} {deadTestDone(s, r) ? '✓' : '—'}</td></tr>
+            <tr key={`${r.a}${r.b}`}><td>{r.label}</td><td>{r.instrument === 'tic' ? 'TIC 300 HIGH, hot stick' : '789 V AC'} {deadTestDone(s, r) ? '✓' : '—'}</td></tr>
           ))}
         </tbody>
       </table>

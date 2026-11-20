@@ -164,12 +164,16 @@ export type LogKind = 'info' | 'measure' | 'action' | 'warn' | 'inspect' | 'viol
 export interface LogEntry { t: number; kind: LogKind; text: string }
 
 export type Instrument = 'dmm' | 'tic'
-export interface DeadTest { a: Point; b: Point; mode: MeterMode; t: number; instrument: Instrument }
+/** `n` is the measurement sequence number, so live-dead-live order holds even within one second. */
+export interface DeadTest { a: Point; b: Point; mode: MeterMode; t: number; n: number; instrument: Instrument }
 
 export type TicRange = 'LOW' | 'HIGH'
 export interface TicState {
   on: boolean
   range: TicRange
+  /** tracer clipped to the hot stick; it is never hand-held near 4160 V */
+  hotStick: boolean
+  /** tracer clipped to the hot stick; it is never hand-held near 4160 V */
   selfTestAt: number | null
   last: { point: Point; detected: boolean; t: number } | null
 }
@@ -205,7 +209,8 @@ export interface ElecState {
   meter: { mode: MeterMode; jacks: MeterJacks; probeA: Point | null; probeB: Point | null; held: string | null; rel: number | null; manualRange: boolean; backlight: boolean }
   megger: MeggerState
   tic: TicState
-  proofs: number[]
+  /** instrument proved on a known live source: the 789 on the receptacle by contact, the TIC on the receptacle on LOW */
+  proofs: { t: number; n: number; instrument: 'tic' | 'dmm' }[]
   deadTests: DeadTest[]
   insTests: InsTest[]
   tests: number

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  chargeLampOn, createElecSession, eswc, insulationTest, linkVolts, lockedOut, ppeCheck, reduceElec, relayLit, verifiedDead, voltageBetween, type Action,
+  chargeLampOn, createElecSession, eswc, insulationTest, linkVolts, lockedOut, ppeCheck, reduceElec, relayLit, verifiedDead, voltageBetween, type Action, provedBeforeFor, provedAfterFor,
 } from './engine'
 import { scoreElec } from './score'
 import { CHECKLIST, type ElecState, type Point } from './types'
@@ -28,17 +28,16 @@ const OPEN_ALL: Action[] = (['mv', 'bypass', 'aux', 'ctrl'] as const).map((t) =>
 function toEswc(s: ElecState): ElecState {
   return run(s,
     ...prework(), ...FULL_PPE,
-    // prove the TIC on the live bypass bus and the 789 on the receptacle before anything is opened
-    { type: 'ticPower', on: true }, { type: 'ticSelfTest' }, { type: 'ticRange', range: 'HIGH' },
-    { type: 'goto', scene: 'compartment' }, { type: 'door', open: true }, ...tic('BP_L1'),
-    { type: 'goto', scene: 'room' }, ...vac('RECEPT_H', 'RECEPT_N'),
+    // live: the TIC on LOW and the 789 by contact, both on the 120 V receptacle, before anything is opened
+    { type: 'ticPower', on: true }, { type: 'ticSelfTest' }, { type: 'ticHotStick', on: true }, { type: 'ticRange', range: 'LOW' }, ...tic('RECEPT_H'),
+    ...vac('RECEPT_H', 'RECEPT_N'),
     ...OPEN_ALL, ...LOCK_ALL, { type: 'tryStart' }, { type: 'wait', minutes: 15 },
     // low voltage checks with the 789
     { type: 'auxDoor', open: true }, ...vac('AUX_T1', 'AUX_G'), ...vac('AUX_T2', 'AUX_G'), ...vac('AUX_T3', 'AUX_G'), ...vac('CTRL_H', 'CTRL_N'),
-    // medium voltage checks with the TIC on HIGH
-    { type: 'goto', scene: 'compartment' }, ...tic('BP_L1', 'BP_L2', 'BP_L3', 'VO_1', 'VO_2', 'VO_3', 'U', 'V', 'W'),
-    // re-prove both instruments
-    { type: 'goto', scene: 'room' }, ...tic('PROVE_MV'), ...vac('RECEPT_H', 'RECEPT_N'),
+    // dead: medium voltage checks with the TIC on HIGH, on the hot stick
+    { type: 'goto', scene: 'compartment' }, { type: 'door', open: true }, { type: 'ticRange', range: 'HIGH' }, ...tic('BP_L1', 'BP_L2', 'BP_L3', 'VO_1', 'VO_2', 'VO_3', 'U', 'V', 'W'),
+    // live again: both instruments back on the receptacle
+    { type: 'goto', scene: 'room' }, { type: 'ticRange', range: 'LOW' }, ...tic('RECEPT_H'), ...vac('RECEPT_H', 'RECEPT_N'),
     { type: 'goto', scene: 'compartment' }, { type: 'liftLeads', lifted: true },
   )
 }
@@ -109,7 +108,7 @@ describe('LOTO and verification', () => {
   })
 
   it('TIC on LOW inside the MV compartment picks up the live bus; HIGH reads the conductor', () => {
-    const s = run(createElecSession(byId('term-fault')), ...FULL_PPE, { type: 'ticPower', on: true }, { type: 'ticSelfTest' }, { type: 'goto', scene: 'compartment' }, { type: 'door', open: true })
+    const s = run(createElecSession(byId('term-fault')), ...FULL_PPE, { type: 'ticPower', on: true }, { type: 'ticSelfTest' }, { type: 'ticHotStick', on: true }, { type: 'goto', scene: 'compartment' }, { type: 'door', open: true })
     const low = run(s, ...tic('U'))
     expect(low.tic.last?.detected).toBe(true)
     expect(low.deadTests).toHaveLength(0)
@@ -119,7 +118,26 @@ describe('LOTO and verification', () => {
     expect(high.deadTests).toHaveLength(1)
     const bus = run(s, { type: 'ticRange', range: 'HIGH' }, ...tic('BP_L1'))
     expect(bus.tic.last?.detected).toBe(true)
-    expect(bus.proofs).toHaveLength(1)
+    expect(bus.proofs).toHaveLength(0)
+  })
+
+  it('live-dead-live with the TIC: receptacle on LOW lights and proves, HIGH on the receptacle does not, hand-held at MV is a violation', () => {
+    const on = run(createElecSession(byId('term-fault')), ...FULL_PPE, { type: 'ticPower', on: true }, { type: 'ticSelfTest' })
+    const high = run(on, { type: 'ticRange', range: 'HIGH' }, ...tic('RECEPT_H'))
+    expect(high.tic.last?.detected).toBe(false)
+    expect(high.proofs).toHaveLength(0)
+    const low = run(on, { type: 'ticRange', range: 'LOW' }, ...tic('RECEPT_H'))
+    expect(low.tic.last?.detected).toBe(true)
+    expect(low.proofs).toEqual([{ t: low.t, n: low.tests, instrument: 'tic' }])
+    const handHeld = run(low, { type: 'goto', scene: 'compartment' }, { type: 'door', open: true }, { type: 'ticRange', range: 'HIGH' }, ...tic('U'))
+    expect(handHeld.violations.map((v) => v.id)).toContain('tic_no_hotstick')
+    const stick = run(low, { type: 'ticHotStick', on: true }, { type: 'goto', scene: 'compartment' }, { type: 'door', open: true }, { type: 'ticRange', range: 'HIGH' }, ...tic('U'))
+    expect(stick.violations.map((v) => v.id)).not.toContain('tic_no_hotstick')
+    expect(stick.deadTests).toHaveLength(1)
+    expect(provedBeforeFor(stick, 'tic')).toBe(true)
+    expect(provedAfterFor(stick, 'tic')).toBe(false)
+    const again = run(stick, { type: 'goto', scene: 'room' }, { type: 'ticRange', range: 'LOW' }, ...tic('RECEPT_H'))
+    expect(provedAfterFor(again, 'tic')).toBe(true)
   })
 
   it('TIC on a 480 V point records nothing and states the rule once', () => {

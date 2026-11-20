@@ -270,7 +270,7 @@ export function RoomScene({ state, onProbe, dispatch, onLabel, leads, onDrop }: 
         <rect x="808" y="406" width="52" height="22" fill="#3b4a66" opacity="0.8" />
         <TP state={s} id="PROVE_MV" x={834} y={417} onProbe={onProbe} />
         <text x="834" y="446" textAnchor="middle" className="tiny-dark" style={{ fontSize: 5.5 }}>M42 FEEDER · LIVE · viewing window</text>
-        <text x="834" y="455" textAnchor="middle" className="hint">prove the TIC here</text>
+        <text x="834" y="455" textAnchor="middle" className="hint">live 4160 V · HIGH range check</text>
       </g>
 
       {/* GFCI receptacle on the wall between the lineups: known live 120 V source for the 789 */}

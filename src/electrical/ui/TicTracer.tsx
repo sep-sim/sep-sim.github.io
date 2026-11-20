@@ -30,17 +30,20 @@ export function TicTracer({ state, dispatch }: Props) {
           <div className={`tic-led ${t.on ? 'on' : ''}`} />
         </div>
         <div className="tic-handle"><span /></div>
+        {t.hotStick && <div className="tic-stick" title="hot stick" />}
       </div>
+      <button className={t.hotStick ? 'primary' : ''} onClick={() => dispatch({ type: 'ticHotStick', on: !t.hotStick })}>{t.hotStick ? 'On the hot stick · take it off' : 'Clip onto the hot stick'}</button>
       <div className={`tic-readout ${flashing ? 'hot' : ''}`}>
         {!t.on && 'OFF'}
-        {t.on && t.last == null && `ON · ${t.range} range${t.selfTestAt != null ? ' · self-tested' : ' · not self-tested'}`}
+        {t.on && t.last == null && `ON · ${t.range} range${t.selfTestAt != null ? ' · self-tested' : ' · not self-tested'}${t.hotStick ? ' · hot stick' : ''}`}
         {t.on && t.last != null && (t.last.detected ? `⚡ BEEP · ${POINT_LABEL[t.last.point]}` : `no indication · ${POINT_LABEL[t.last.point]}`)}
       </div>
       <p className="muted small">
-        Non-contact AC detector, the verification instrument for the 4160 V side. Press TEST for the self-test, prove it on the live
-        M42 window, then hold the tip at each 4160 V conductor on HIGH range: tap the point in the scene. LOW range inside an MV
-        compartment picks up the adjacent live bus and proves nothing. Re-prove on the M42 window when done. The 480 V and 120 V
-        points are the Fluke 789's job.
+        Non-contact AC detector, the verification instrument for the 4160 V side. Live-dead-live: press TEST for the self-test, clip
+        the tracer to the hot stick, and on LOW range tap the 120 V receptacle in the electrical room so it lights. Go to the motor
+        connection compartment, switch to HIGH and tap every connection: bypass stabs, VFD output and U, V, W, with no indication at
+        any of them. Come back, switch to LOW and tap the receptacle again so it lights. LOW inside the MV compartment picks up the
+        adjacent live bus and proves nothing; the receptacle will not light HIGH. The 480 V and 120 V checks are the Fluke 789's job.
       </p>
     </div>
   )

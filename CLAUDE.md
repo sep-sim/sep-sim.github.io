@@ -71,6 +71,11 @@ Model notes worth knowing before touching it:
   point on the cells; the hands-on gate uses the lamps.
 - Instruments by voltage: the 789 on a 4160 V point is `dmm_on_mv`; the TIC counts only on HIGH range at MV points (LOW picks
   up the live bus, `tic_low_range_mv`); TIC on a 480/120 V point records nothing. `REQUIRED_DEAD` names the instrument per point.
+- Live-dead-live is tracked per instrument (`provedBeforeFor` / `provedAfterFor`, ordered by measurement sequence `n`, not time):
+  the TIC proves on the 120 V receptacle on LOW (HIGH will not light there), rides the hot stick for every MV point
+  (`tic_no_hotstick` otherwise), and a live MV indication is not a proof; the 789 proves on the receptacle by contact.
+- The 789 and Megger leads are plugged in at the instrument (`meterJack`, `meggerJack`) and dragged onto `[data-point]`
+  targets by `components/LeadLayer.tsx`; a `probe` / `meggerLead` without `lead` / `drag` is the tap shortcut the tests use.
 - Megger: `scenario.megVolts` (2.5 kV min, 5 kV max) drives `meg_low_volts` / `meg_high_volts`.
 - Insulation model is a node graph: cable1-3 and motor1-3, joined by bolted feeder lugs and the T4-T5-T6 wye bar.
   Resistance to ground of a group = parallel of its members. Phase to phase inside one group = 0.00 MΩ (continuity).
