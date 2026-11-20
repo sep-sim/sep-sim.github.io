@@ -1,5 +1,7 @@
 import type { PointerEvent } from 'react'
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
+import type { XY } from './sceneTargets'
+import { nearestTarget, scanTargets, svgPoint } from './sceneTargets'
 
 export interface LeadSpec {
   /** 'red' | 'black' for the 789, 'plus' | 'minus' for the Megger */
@@ -17,39 +19,23 @@ export interface LeadLayerProps {
   onDrop: (lead: string, target: string | null) => void
 }
 
-type XY = [number, number]
-const SNAP = 18
 
 /** Probe leads the technician drags onto `[data-point]` targets in the host SVG. Cables run in from the meter below the frame. */
 export function LeadLayer({ leads, height, onDrop }: LeadLayerProps) {
   const g = useRef<SVGGElement>(null)
-  const [targets, setTargets] = useState<Record<string, XY>>({})
-  const [parked, setParked] = useState<Record<string, XY>>({})
+  /** where each tip was left: on a target (clipped) or loose on the scene */
+  const [parked, setParked] = useState<Record<string, { at: XY; target: string | null }>>({})
   const [drag, setDrag] = useState<{ id: string; at: XY } | null>(null)
-
-  useLayoutEffect(() => {
-    const svg = g.current?.ownerSVGElement
-    if (!svg) return
-    const found: Record<string, XY> = {}
-    svg.querySelectorAll<SVGGElement>('[data-point]').forEach((el) => {
-      const c = el.querySelector('circle')
-      const id = el.dataset.point
-      if (c && id) found[id] = [Number(c.getAttribute('cx')), Number(c.getAttribute('cy'))]
-    })
-    setTargets((prev) => (JSON.stringify(prev) === JSON.stringify(found) ? prev : found))
-  }, [leads])
-
-  const toSvg = (e: PointerEvent<SVGGElement>): XY => {
-    const svg = g.current!.ownerSVGElement!
-    const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(svg.getScreenCTM()!.inverse())
-    return [p.x, p.y]
-  }
+  const toSvg = (e: PointerEvent<SVGGElement>): XY => svgPoint(g.current!, e)
   const home = (i: number): XY => [34 + i * 34, height + 12]
   const park = (i: number): XY => [44 + i * 34, height - 48]
   const tipOf = (lead: LeadSpec, i: number): XY => {
     if (drag?.id === lead.id) return drag.at
-    if (lead.point && targets[lead.point]) return targets[lead.point]
-    return parked[lead.id] ?? park(i)
+    const p = parked[lead.id]
+    if (!p) return park(i)
+    // a tip left on a target stays there only while the engine still has the lead on that point
+    if (p.target && p.target !== lead.point) return park(i)
+    return p.at
   }
 
   return (
@@ -72,18 +58,14 @@ export function LeadLayer({ leads, height, onDrop }: LeadLayerProps) {
               onPointerUp={(e) => {
                 if (drag?.id !== lead.id) return
                 const at = toSvg(e)
-                let best: string | null = null
-                let bestD = SNAP
-                for (const [id, [x, y]] of Object.entries(targets)) {
-                  const d = Math.hypot(x - at[0], y - at[1])
-                  if (d < bestD) { best = id; bestD = d }
-                }
+                const targets = scanTargets(g.current!)
+                const best = nearestTarget(targets, at)
                 setDrag(null)
                 if (best) {
-                  setParked((p) => Object.fromEntries(Object.entries(p).filter(([k]) => k !== lead.id)))
+                  setParked((p) => ({ ...p, [lead.id]: { at: targets[best], target: best } }))
                   if (best !== lead.point) onDrop(lead.id, best)
                 } else {
-                  setParked((p) => ({ ...p, [lead.id]: at }))
+                  setParked((p) => ({ ...p, [lead.id]: { at, target: null } }))
                   if (lead.point) onDrop(lead.id, null)
                 }
               }}

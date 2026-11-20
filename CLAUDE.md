@@ -76,6 +76,8 @@ Model notes worth knowing before touching it:
   (`tic_no_hotstick` otherwise), and a live MV indication is not a proof; the 789 proves on the receptacle by contact.
 - The 789 and Megger leads are plugged in at the instrument (`meterJack`, `meggerJack`) and dragged onto `[data-point]`
   targets by `components/LeadLayer.tsx`; a `probe` / `meggerLead` without `lead` / `drag` is the tap shortcut the tests use.
+- The TIC rides in the scene (`ui/TicLayer.tsx`, shown while its tab is open) with ON/OFF, TEST, LOW/HIGH and the hot stick
+  clip on the unit; dropping its tip on a `[data-point]` dispatches `ticCheck`. The receptacle slots are `ghost` test points.
 - Megger: `scenario.megVolts` (2.5 kV min, 5 kV max) drives `meg_low_volts` / `meg_high_volts`.
 - Insulation model is a node graph: cable1-3 and motor1-3, joined by bolted feeder lugs and the T4-T5-T6 wye bar.
   Resistance to ground of a group = parallel of its members. Phase to phase inside one group = 0.00 MΩ (continuity).

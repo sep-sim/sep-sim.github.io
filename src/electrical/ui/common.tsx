@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import type { ElecState, Point } from '../types'
 import type { LeadSpec } from '../../components/LeadLayer'
 
@@ -6,12 +7,14 @@ export interface SceneProps {
   onProbe: (p: Point) => void
   leads: LeadSpec[]
   onDrop: (lead: string, target: string | null) => void
+  /** instrument drawn over the scene, after the leads: the TIC on its hot stick */
+  overlay?: ReactNode
 }
 
 /** A clickable test point on a scene. */
-export function TP({ state, id, x, y, label, onProbe, side = 'right' }: { state: ElecState; id: Point; x: number; y: number; label?: string; onProbe: (p: Point) => void; side?: 'left' | 'right' | 'top' | 'bottom' }) {
+export function TP({ state, id, x, y, label, onProbe, side = 'right', ghost = false }: { state: ElecState; id: Point; x: number; y: number; label?: string; onProbe: (p: Point) => void; side?: 'left' | 'right' | 'top' | 'bottom'; ghost?: boolean }) {
   const m = state.meter
-  const cls = `etp${m.probeA === id ? ' a' : ''}${m.probeB === id ? ' b' : ''}`
+  const cls = `etp${ghost ? ' ghost' : ''}${m.probeA === id ? ' a' : ''}${m.probeB === id ? ' b' : ''}`
   const lx = side === 'left' ? x - 12 : side === 'right' ? x + 12 : x
   const ly = side === 'top' ? y - 12 : side === 'bottom' ? y + 18 : y + 4
   const anchor = side === 'left' ? 'end' : side === 'right' ? 'start' : 'middle'

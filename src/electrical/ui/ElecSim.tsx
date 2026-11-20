@@ -1,5 +1,6 @@
 import { useEffect, useReducer, useState } from 'react'
 import type { LeadSpec } from '../../components/LeadLayer'
+import { TicLayer } from './TicLayer'
 import type { LeadId } from '../../engine/types'
 import type { ElecScenario, Point, Scene, MeggerLeadId } from '../types'
 import { createElecSession, ppeCheck, reduceElec } from '../engine'
@@ -68,10 +69,9 @@ export function ElecSim({ scenario, onExit }: { scenario: ElecScenario; onExit: 
     { id: 'tic', label: 'TIC 300' }, { id: 'dmm', label: 'Fluke 789' }, { id: 'megger', label: 'Megger' }, { id: 'relay', label: 'Relay' }, { id: 'closeout', label: 'Close-out' },
   ]
 
-  /** Scene taps are the TIC tip; the 789 and Megger leads are dragged onto the points instead. */
-  const onProbe = (p: Point) => {
-    if (tab === 'tic') dispatch({ type: 'ticCheck', point: p })
-  }
+  /** Every instrument is dragged onto the points now; a bare tap on a point does nothing. */
+  const onProbe = (_p: Point) => {}
+  const overlay = tab === 'tic' ? <TicLayer state={state} dispatch={dispatch} park={state.scene === 'room' ? [905, 300] : state.scene === 'compartment' ? [905, 400] : [905, 330]} /> : null
   const mt = state.meter
   const mg = state.megger
   const leads: LeadSpec[] = tab === 'dmm'
@@ -118,9 +118,9 @@ export function ElecSim({ scenario, onExit }: { scenario: ElecScenario; onExit: 
       </header>
       <main>
         <section className="diagram">
-          {state.scene === 'room' && <RoomScene state={state} onProbe={onProbe} leads={leads} onDrop={onDrop} dispatch={dispatch} onLabel={() => { dispatch({ type: 'readLabel' }); setLabel(true) }} />}
-          {state.scene === 'compartment' && <CompartmentScene state={state} onProbe={onProbe} leads={leads} onDrop={onDrop} dispatch={dispatch} />}
-          {state.scene === 'motor' && <MotorScene state={state} onProbe={onProbe} leads={leads} onDrop={onDrop} dispatch={dispatch} />}
+          {state.scene === 'room' && <RoomScene state={state} onProbe={onProbe} leads={leads} onDrop={onDrop} overlay={overlay} dispatch={dispatch} onLabel={() => { dispatch({ type: 'readLabel' }); setLabel(true) }} />}
+          {state.scene === 'compartment' && <CompartmentScene state={state} onProbe={onProbe} leads={leads} onDrop={onDrop} overlay={overlay} dispatch={dispatch} />}
+          {state.scene === 'motor' && <MotorScene state={state} onProbe={onProbe} leads={leads} onDrop={onDrop} overlay={overlay} dispatch={dispatch} />}
         </section>
         <aside>
           <div className="toolbox">

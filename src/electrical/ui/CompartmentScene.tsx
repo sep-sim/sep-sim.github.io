@@ -9,7 +9,7 @@ interface Props extends SceneProps {
 }
 
 /** Inside the M12 lower door: bypass stabs, VFD output terminations and the P-310 motor cable terminations on a common bus. */
-export function CompartmentScene({ state, onProbe, dispatch, leads, onDrop }: Props) {
+export function CompartmentScene({ state, onProbe, dispatch, leads, onDrop, overlay }: Props) {
   const s = state
   const lamp = chargeLampOn(s)
   const closed = contactorClosed(s)
@@ -100,6 +100,7 @@ export function CompartmentScene({ state, onProbe, dispatch, leads, onDrop }: Pr
 
       <Hotspot x={700} y={28} w={210} h={28} label="Close door, back to the room" onClick={() => { dispatch({ type: 'door', open: false }); dispatch({ type: 'goto', scene: 'room' }) }} />
       <LeadLayer leads={leads} height={600} onDrop={onDrop} />
+      {overlay}
     </svg>
   )
 }

@@ -68,7 +68,7 @@ function Volts({ x, y, text, w = 46 }: { x: number; y: number; text: string; w?:
   )
 }
 
-export function RoomScene({ state, onProbe, dispatch, onLabel, leads, onDrop }: Props) {
+export function RoomScene({ state, onProbe, dispatch, onLabel, leads, onDrop, overlay }: Props) {
   const s = state
   const lit = relayLit(s)
   return (
@@ -289,14 +289,15 @@ export function RoomScene({ state, onProbe, dispatch, onLabel, leads, onDrop }: 
         {/* bottom outlet */}
         <rect x="452.5" y="269" width="2.2" height="7" fill="#222" /><rect x="468" y="270" width="1.8" height="6" fill="#222" />
         <path d="M459.5 282 a2.5 2.5 0 0 1 5 0 v1.5 h-5 z" fill="#222" />
-        <TP state={s} id="RECEPT_N" x={453} y={272} onProbe={onProbe} />
-        <TP state={s} id="RECEPT_H" x={469} y={272} onProbe={onProbe} />
-        <TP state={s} id="RECEPT_G" x={462} y={285} onProbe={onProbe} />
+        <TP state={s} id="RECEPT_N" x={453} y={272} onProbe={onProbe} ghost />
+        <TP state={s} id="RECEPT_H" x={469} y={272} onProbe={onProbe} ghost />
+        <TP state={s} id="RECEPT_G" x={462} y={285} onProbe={onProbe} ghost />
       </g>
 
       <Hotspot x={760} y={510} w={170} h={36} label="Walk to P-310 motor →" onClick={() => dispatch({ type: 'goto', scene: 'motor' })} />
       <text x="40" y="520" className="scene-note" style={{ fill: '#d8dbdf' }}>Arc flash boundary from the label is {s.scenario.label.arcFlashBoundary} in. Anyone inside it needs the PPE.</text>
       <LeadLayer leads={leads} height={600} onDrop={onDrop} />
+      {overlay}
     </svg>
   )
 }

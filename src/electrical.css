@@ -20,6 +20,26 @@ svg.scene { width: 100%; height: 100%; font-family: inherit; }
 .etp.a circle { fill: #ff4d4d; stroke: #fff; }
 .etp.b circle { fill: #222; stroke: #fff; }
 .etp-label { fill: #1e2226; font-size: 9px; font-weight: 700; pointer-events: none; }
+.etp.ghost:not(.a):not(.b) circle { fill: transparent; stroke: transparent; }
+.etp.ghost:not(.a):not(.b):hover circle { stroke: #f5a52488; stroke-width: 2; }
+/* the TIC 300 PRO drawn in the scene */
+.tic-scene .tic-drag { cursor: grab; }
+.tic-scene .tic-drag.dragging { cursor: grabbing; }
+.tic-scene-tip { fill: #f3b61f; stroke: #8a6a10; stroke-width: 0.6; }
+.tic-scene-tip.flash { fill: #ff5a1f; filter: drop-shadow(0 0 6px #ff2d2d); animation: ticflashsvg 0.3s steps(2) infinite; }
+@keyframes ticflashsvg { to { fill: #f3b61f; } }
+.tic-scene-btn { cursor: pointer; }
+.tic-scene-btn rect { fill: #1b1b1b; stroke: #000; stroke-width: 0.6; }
+.tic-scene-btn text { fill: #fff; font-size: 3.4px; font-weight: 800; pointer-events: none; }
+.tic-scene-btn.onoff rect { fill: #f3b61f; }
+.tic-scene-btn.onoff text { fill: #111; }
+.tic-scene-btn.onoff.on rect { stroke: #fff; stroke-width: 1.2; }
+.tic-scene-btn.range.sel rect { stroke: #f3b61f; stroke-width: 1.2; }
+.tic-scene-btn.stick rect { fill: #f28a1f; }
+.tic-scene-btn.stick text { fill: #111; }
+.tic-scene-btn:hover rect { filter: brightness(1.3); }
+.tic-scene-read { font-family: Consolas, monospace; font-size: 8px; font-weight: 700; fill: #1e2226; paint-order: stroke; stroke: #ffffffcc; stroke-width: 3px; pointer-events: none; }
+.tic-scene-read.hot { fill: #b3121f; }
 
 .scene-nav { display: flex; gap: 4px; }
 .scene-nav button { font-size: 12px; }

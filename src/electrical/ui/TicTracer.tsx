@@ -39,11 +39,12 @@ export function TicTracer({ state, dispatch }: Props) {
         {t.on && t.last != null && (t.last.detected ? `⚡ BEEP · ${POINT_LABEL[t.last.point]}` : `no indication · ${POINT_LABEL[t.last.point]}`)}
       </div>
       <p className="muted small">
-        Non-contact AC detector, the verification instrument for the 4160 V side. Live-dead-live: press TEST for the self-test, clip
-        the tracer to the hot stick, and on LOW range tap the 120 V receptacle in the electrical room so it lights. Go to the motor
-        connection compartment, switch to HIGH and tap every connection: bypass stabs, VFD output and U, V, W, with no indication at
-        any of them. Come back, switch to LOW and tap the receptacle again so it lights. LOW inside the MV compartment picks up the
-        adjacent live bus and proves nothing; the receptacle will not light HIGH. The 480 V and 120 V checks are the Fluke 789's job.
+        Non-contact AC detector, the verification instrument for the 4160 V side. With this tab open the tracer is in the scene,
+        leaning at the right. Live-dead-live: switch it on, press TEST, clip it to the hot stick, select LOW and drag the tip onto the
+        120 V receptacle so it lights. Go to the motor connection compartment, switch to HIGH and drag the tip onto every connection:
+        bypass stabs, VFD output and U, V, W, with no indication at any of them. Come back, switch to LOW and touch the receptacle
+        again so it lights. LOW inside the MV compartment picks up the adjacent live bus and proves nothing; the receptacle will not
+        light HIGH. The 480 V and 120 V checks are the Fluke 789's job.
       </p>
     </div>
   )
