@@ -83,7 +83,7 @@ function Menu({ onPick }: { onPick: (p: Pick) => void }) {
     <div className="menu">
       <h1><span className="brand">SEPSim</span> · I&amp;E field training</h1>
       <div className="menu-section">
-        <h2>Electrical · 4160 V VFD ground fault, lockout, verification, insulation testing</h2>
+        <h2>600 V and above · 4160 V VFD ground fault, lockout, verification, insulation testing</h2>
         <p className="muted">
           Toshiba JK-series medium voltage controller on a 4000 HP pump, with bypass, a 480 V CENTERLINE MCC for the auxiliaries and
           120 V control. Read the label, dress for it, isolate four sources, prove zero energy with the TIC on the 4160 V side and
@@ -98,6 +98,20 @@ function Menu({ onPick }: { onPick: (p: Pick) => void }) {
               <div className="muted small">{s.workOrder}</div>
             </button>
           ))}
+        </div>
+      </div>
+      <div className="menu-section">
+        <h2>600 V and below · 480 V MCC and 120 V control</h2>
+        <p className="muted">
+          Low voltage work orders on the CENTERLINE 2100 buckets, panelboards and control circuits: lockout at the bucket, verification
+          by contact with the Fluke 789, motor and control troubleshooting.
+        </p>
+        <div className="cards">
+          <div className="card placeholder">
+            <div className="pill">coming</div>
+            <div className="card-title">No work orders yet</div>
+            <div className="muted small">The first 600 V and below scenarios are still being written.</div>
+          </div>
         </div>
       </div>
       <div className="menu-section">

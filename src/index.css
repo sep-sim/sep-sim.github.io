@@ -144,6 +144,7 @@ svg.trend .grid { stroke: var(--line); }
 .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 12px; margin-top: 16px; }
 .card { text-align: left; padding: 14px; display: grid; gap: 6px; }
 .card-title { font-weight: 600; }
+.card.placeholder { opacity: 0.6; border-style: dashed; cursor: default; }
 .results { max-width: 1000px; margin: 0 auto; padding: 30px 20px; display: grid; gap: 14px; }
 .results-head { display: flex; justify-content: space-between; align-items: center; }
 .grade { display: inline-block; padding: 2px 12px; border-radius: 6px; margin-left: 8px; }

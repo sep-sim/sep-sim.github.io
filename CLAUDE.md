@@ -50,7 +50,7 @@ solution path added to its `solutions` map.
 
 ## Electrical module (`src/electrical/`)
 
-Second scenario family: VFD #2, a Toshiba JK-series 4160 V medium voltage controller (power isolation switch, VFD, M12 bypass,
+Second scenario family (menu section "600 V and above"; "600 V and below" is a placeholder section with no scenarios yet): VFD #2, a Toshiba JK-series 4160 V medium voltage controller (power isolation switch, VFD, M12 bypass,
 M32 output isolation contactor) on pump P-310 (4000 HP), with a CENTERLINE 2100 480 V MCC for the drive auxiliaries and
 120 V control from panelboard LP-1. Separate engine, same app.
 
