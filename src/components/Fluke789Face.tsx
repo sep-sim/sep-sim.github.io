@@ -162,7 +162,7 @@ function useFitScale() {
       const natural = b.offsetHeight
       const wrap = b.parentElement!
       const rest = r.offsetHeight - wrap.offsetHeight
-      const next = Math.max(0.55, Math.min(1, (avail - rest) / natural))
+      const next = Math.max(0.3, Math.min(1, (avail - rest) / natural))
       setK((prev) => (Math.abs(prev - next) < 0.005 ? prev : next))
       setHeight(Math.round(natural * next))
     }
