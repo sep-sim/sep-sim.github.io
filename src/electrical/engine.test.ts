@@ -10,7 +10,7 @@ const byId = (id: string) => ELEC_SCENARIOS.find((s) => s.id === id)!
 const run = (s: ElecState, ...acts: Action[]) => acts.reduce(reduceElec, s)
 
 const wear = (ids: readonly string[]): Action[] => ids.map((id) => ({ type: 'ppe', id: id as never, on: true }))
-const FULL_PPE: Action[] = [...wear(['hardhat', 'glasses', 'hearing', 'suit40', 'gloves2', 'boots']), { type: 'ppeConfirm' }]
+const FULL_PPE: Action[] = [...wear(['hardhat', 'hood40', 'glasses', 'hearing', 'suit40', 'gloves2', 'gloves_leather', 'boots']), { type: 'ppeConfirm' }]
 const prework = (): Action[] => [{ type: 'readLabel' }, ...CHECKLIST.map((c) => ({ type: 'checklist', id: c.id }) as Action)]
 const vac = (a: Point, b: Point): Action[] => [{ type: 'meterMode', mode: 'VAC' }, { type: 'probe', point: a }, { type: 'probe', point: b }]
 const tic = (...pts: Point[]): Action[] => pts.map((p) => ({ type: 'ticCheck', point: p }) as Action)
@@ -70,18 +70,32 @@ describe('energy state', () => {
 describe('PPE at 22.4 cal/cm² and 4160 V', () => {
   it('needs the 40 cal suit and class 2 gloves; 12 cal with a shield and class 1 fail', () => {
     const base = createElecSession(byId('term-fault'))
-    const twelve = run(base, ...wear(['hardhat', 'glasses', 'hearing', 'ar12', 'faceshield', 'gloves2', 'boots']))
+    const twelve = run(base, ...wear(['hardhat', 'hood40', 'glasses', 'hearing', 'frj12', 'gloves2', 'gloves_leather', 'boots']))
     expect(ppeCheck(twelve).adequate).toBe(false)
     expect(ppeCheck(twelve).issues[0]).toContain('below')
-    const class1 = run(base, ...wear(['hardhat', 'glasses', 'hearing', 'suit40', 'gloves1', 'boots']))
+    const class1 = run(base, ...wear(['hardhat', 'hood40', 'glasses', 'hearing', 'suit40', 'gloves1', 'gloves_leather', 'boots']))
     expect(ppeCheck(class1).adequate).toBe(false)
     expect(ppeCheck(class1).issues[0]).toContain('class 2')
     const good = run(base, ...FULL_PPE)
     expect(ppeCheck(good).adequate).toBe(true)
     expect(good.ppeConfirmed?.adequate).toBe(true)
-    const class3 = run(base, ...wear(['hardhat', 'glasses', 'hearing', 'suit40', 'gloves3', 'boots']), { type: 'ppeConfirm' })
+    const class3 = run(base, ...wear(['hardhat', 'hood40', 'glasses', 'hearing', 'suit40', 'gloves3', 'gloves_leather', 'boots']), { type: 'ppeConfirm' })
     expect(ppeCheck(class3).adequate).toBe(true)
     expect(class3.log.at(-1)?.text).toContain('over-rated')
+  })
+
+  it('rubber gloves need leather protectors over them, and the hood is its own item', () => {
+    const base = createElecSession(byId('term-fault'))
+    const bare = run(base, ...wear(['hardhat', 'hood40', 'glasses', 'hearing', 'suit40', 'gloves2', 'boots']))
+    expect(ppeCheck(bare).adequate).toBe(false)
+    expect(ppeCheck(bare).issues[0]).toContain('leather protectors')
+    const noHood = run(base, ...wear(['hardhat', 'glasses', 'hearing', 'suit40', 'gloves2', 'gloves_leather', 'boots']))
+    expect(ppeCheck(noHood).issues[0]).toContain('balaclava')
+    // swapping glove class keeps the protectors on; the body items swap each other out
+    const swapped = run(base, ...wear(['gloves2', 'gloves_leather', 'gloves3', 'frs8', 'suit40']))
+    expect(swapped.ppe).toContain('gloves_leather')
+    expect(swapped.ppe).not.toContain('gloves2')
+    expect(swapped.ppe).not.toContain('frs8')
   })
 
   it('any lockout action before a confirmed suit-up is a violation', () => {

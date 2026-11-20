@@ -219,12 +219,8 @@ export function ppeCheck(s: ElecState): { adequate: boolean; issues: string[]; b
   const issues: string[] = []
   const body = PPE_ITEMS.filter((p) => p.slot === 'body' && worn.has(p.id)).reduce((m, p) => Math.max(m, p.arcRating ?? 0), 0)
   if (body < l.incidentEnergy) issues.push(`Body arc rating ${body} cal/cm² is below the ${l.incidentEnergy} cal/cm² incident energy`)
-  const hood = worn.has('suit40')
-  if (!hood) {
-    if (!worn.has('faceshield')) issues.push('No arc-rated face and head protection')
-    else if (12 < l.incidentEnergy) issues.push('Face shield rating below incident energy; this label needs the arc flash hood')
-  }
   if (!worn.has('hardhat')) issues.push('No hard hat')
+  if (!worn.has('hood40')) issues.push(l.incidentEnergy > 12 ? 'No arc-rated hood: the label needs the 40 cal/cm² balaclava hood' : 'No arc-rated head and face protection')
   if (!worn.has('glasses')) issues.push('No safety glasses')
   if (!worn.has('hearing')) issues.push('No hearing protection')
   if (!worn.has('boots')) issues.push('No leather footwear')
@@ -232,6 +228,7 @@ export function ppeCheck(s: ElecState): { adequate: boolean; issues: string[]; b
   if (!glove) issues.push(`No voltage-rated gloves (class ${l.gloveClass} required for ${l.voltage} V shock exposure)`)
   else if ((glove.maxUseAc ?? 0) < l.voltage) issues.push(`Class ${glove.gloveClass} gloves are rated ${glove.maxUseAc} V, below ${l.voltage} V`)
   else if ((glove.gloveRank ?? 0) < l.gloveRank) issues.push(`Class ${glove.gloveClass} gloves are below the class ${l.gloveClass} the label calls for`)
+  else if (!worn.has('gloves_leather')) issues.push(`Class ${glove.gloveClass} rubber gloves without leather protectors over them`)
   return { adequate: issues.length === 0, issues, bodyRating: body }
 }
 
@@ -765,8 +762,9 @@ export function reduceElec(s: ElecState, a: Action): ElecState {
       const item = PPE_ITEMS.find((p) => p.id === a.id)!
       let ppe = s.ppe.filter((p) => p !== a.id)
       if (a.on) {
-        if (item.slot === 'body' && item.id !== 'cotton') ppe = ppe.filter((p) => !['ar8', 'ar12', 'suit40'].includes(p))
-        if (item.slot === 'hands') ppe = ppe.filter((p) => PPE_ITEMS.find((x) => x.id === p)?.slot !== 'hands')
+        if (item.slot === 'body' && item.id !== 'cotton') ppe = ppe.filter((p) => !['frs8', 'frj12', 'suit40'].includes(p))
+        // one class of rubber glove at a time; the leather protectors go over whichever class is on
+        if (item.slot === 'hands' && item.shockOk) ppe = ppe.filter((p) => !PPE_ITEMS.find((x) => x.id === p)?.shockOk)
         ppe = [...ppe, a.id]
       }
       const next = { ...s, ppe }

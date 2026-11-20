@@ -12,16 +12,16 @@ export function GearIcon({ id }: { id: PpeId }) {
       return <svg viewBox="0 0 40 40"><circle cx="12" cy="14" r="5" fill="#ff8a1f" stroke="#b35a00" /><circle cx="28" cy="14" r="5" fill="#ff8a1f" stroke="#b35a00" /><path d="M12 19 Q12 34 20 34 Q28 34 28 19" stroke="#3aa0e0" strokeWidth="1.5" fill="none" /></svg>
     case 'cotton':
       return <svg viewBox="0 0 40 40"><path d="M8 10 L14 6 L20 10 L26 6 L32 10 L34 20 L28 20 L28 34 L12 34 L12 20 L6 20 Z" fill="#7d95b8" stroke="#3f5279" /></svg>
-    case 'ar8':
+    case 'frs8':
       return <svg viewBox="0 0 40 40"><path d="M8 8 L14 5 L20 9 L26 5 L32 8 L34 18 L28 18 L28 22 L12 22 L12 18 L6 18 Z" fill="#24427c" stroke="#101f3e" /><path d="M13 22 L27 22 L26 36 L21 36 L20 28 L19 36 L14 36 Z" fill="#1b3261" stroke="#101f3e" /><text x="20" y="18" textAnchor="middle" fontSize="6" fill="#fff" fontWeight="700">8</text></svg>
-    case 'ar12':
-      return <svg viewBox="0 0 40 40"><path d="M10 6 L30 6 L32 18 L28 18 L27 36 L21 36 L20 24 L19 36 L13 36 L12 18 L8 18 Z" fill="#24427c" stroke="#101f3e" /><path d="M11 14 L29 14 L29 16 L11 16 Z M13 28 L19 28 L19 30 L13 30 Z M21 28 L27 28 L27 30 L21 30 Z" fill="#dfe3e8" /></svg>
+    case 'frj12':
+      return <svg viewBox="0 0 40 40"><path d="M8 8 L14 5 L20 9 L26 5 L32 8 L34 20 L28 20 L28 24 L12 24 L12 20 L6 20 Z" fill="#24427c" stroke="#101f3e" /><path d="M20 9 L20 24" stroke="#dfe3e8" strokeWidth="1.2" /><path d="M13 24 L27 24 L26 36 L21 36 L20 28 L19 36 L14 36 Z" fill="#1b3261" stroke="#101f3e" /><text x="20" y="18" textAnchor="middle" fontSize="6" fill="#fff" fontWeight="700">12</text></svg>
     case 'suit40':
-      return <svg viewBox="0 0 40 40"><path d="M14 4 Q20 0 26 4 L28 14 L12 14 Z" fill="#24427c" stroke="#101f3e" /><rect x="16" y="6" width="8" height="6" fill="#8fd17a" opacity="0.8" /><path d="M8 14 L32 14 L34 24 L30 24 L29 38 L11 38 L10 24 L6 24 Z" fill="#24427c" stroke="#101f3e" /><text x="20" y="31" textAnchor="middle" fontSize="6" fill="#fff" fontWeight="700">40</text></svg>
-    case 'faceshield':
-      return <svg viewBox="0 0 40 40"><path d="M10 6 Q20 2 30 6 L30 14 Q20 10 10 14 Z" fill="#1b3261" /><path d="M8 14 L8 28 Q20 36 32 28 L32 14 Z" fill="#8fd17a" opacity="0.6" stroke="#2f5a26" /><path d="M11 16 L12 26" stroke="#fff" strokeWidth="1.5" /></svg>
+      return <svg viewBox="0 0 40 40"><path d="M8 6 L14 3 L20 7 L26 3 L32 6 L34 20 L28 20 L28 22 L12 22 L12 20 L6 20 Z" fill="#24427c" stroke="#101f3e" /><path d="M13 22 L27 22 L26 38 L21 38 L20 28 L19 38 L14 38 Z" fill="#1b3261" stroke="#101f3e" /><text x="20" y="17" textAnchor="middle" fontSize="6" fill="#fff" fontWeight="700">40</text></svg>
+    case 'hood40':
+      return <svg viewBox="0 0 40 40"><path d="M12 4 Q20 0 28 4 L32 16 L32 36 L8 36 L8 16 Z" fill="#24427c" stroke="#101f3e" /><path d="M13 10 Q20 6 27 10 L28 22 Q20 28 12 22 Z" fill="#8fd17a" opacity="0.75" stroke="#2f5a26" /><text x="20" y="33" textAnchor="middle" fontSize="5.5" fill="#fff" fontWeight="700">40</text></svg>
     case 'gloves_leather':
-      return <svg viewBox="0 0 40 40"><path d="M12 10 L28 10 L28 20 L30 22 L30 34 L12 34 L10 22 Z" fill="#c89a6a" stroke="#6b4a2a" /><path d="M10 10 L30 10 L30 14 L10 14 Z" fill="#6b4a2a" /></svg>
+      return <svg viewBox="0 0 40 40"><path d="M12 12 L28 12 L28 22 L30 24 L30 36 L12 36 L10 24 Z" fill="#c89a6a" stroke="#6b4a2a" /><path d="M10 8 L30 8 L30 14 L10 14 Z" fill="#6b4a2a" /><path d="M14 16 L14 30 M19 16 L19 30 M24 16 L24 30" stroke="#8a6a44" strokeWidth="1" /></svg>
     case 'gloves00': case 'gloves0': case 'gloves1': case 'gloves2': case 'gloves3': case 'gloves4': {
       const item = PPE_ITEMS.find((p) => p.id === id)!
       const dark = item.gloveClass === '1' || item.gloveClass === '00'

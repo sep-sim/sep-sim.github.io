@@ -80,7 +80,7 @@ export function PpeLocker({ state, dispatch }: P) {
   const l = state.scenario.label
   const slots: { slot: string; label: string }[] = [
     { slot: 'head', label: 'Head' }, { slot: 'eyes', label: 'Eyes' }, { slot: 'ears', label: 'Hearing' },
-    { slot: 'body', label: 'Body' }, { slot: 'face', label: 'Face' }, { slot: 'hands', label: 'Hands' }, { slot: 'feet', label: 'Feet' },
+    { slot: 'body', label: 'Body' }, { slot: 'hands', label: 'Hands' }, { slot: 'feet', label: 'Feet' },
   ]
   const confirmed = state.ppeConfirmed
   const suited = suitedUp(state)
@@ -96,8 +96,8 @@ export function PpeLocker({ state, dispatch }: P) {
           {state.labelRead ? (
             <ul>
               <li><b>{l.incidentEnergy} cal/cm²</b> at {l.workingDistance} in</li>
-              <li>Arc rating ≥ <b>{l.minArcRating} cal/cm²</b>, arc flash hood</li>
-              <li>Class <b>{l.gloveClass}</b> gloves + leather protectors</li>
+              <li>Arc rating ≥ <b>{l.minArcRating} cal/cm²</b>, 40 cal balaclava hood</li>
+              <li>Class <b>{l.gloveClass}</b> rubber gloves under leather protectors</li>
               <li>Hard hat, glasses, hearing, leather boots</li>
               <li>AFB {l.arcFlashBoundary} in · limited {l.limitedApproach} in · restricted {l.restrictedApproach} in</li>
             </ul>
@@ -114,7 +114,7 @@ export function PpeLocker({ state, dispatch }: P) {
         <div key={sl.slot} className="rack-row">
           <span className="rack-slot">{sl.label}</span>
           <div className="rack-items">
-            {PPE_ITEMS.filter((p) => p.slot === sl.slot).map((p) => {
+            {PPE_ITEMS.filter((p) => p.slot === sl.slot && p.id !== 'cotton').map((p) => {
               const worn = state.ppe.includes(p.id)
               return (
                 <button key={p.id} className={`rack-item ${worn ? 'worn' : ''}`} title={p.note} onClick={() => dispatch({ type: 'ppe', id: p.id, on: !worn })}>

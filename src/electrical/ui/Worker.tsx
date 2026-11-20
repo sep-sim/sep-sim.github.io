@@ -20,12 +20,12 @@ const R: Record<string, Region[]> = {
 
 export function Worker({ ppe }: { ppe: PpeId[]; adequate?: boolean }) {
   const on = (id: PpeId) => ppe.includes(id)
-  const body = on('suit40') ? 'suit40' : on('ar12') ? 'ar12' : on('ar8') ? 'ar8' : 'cotton'
+  const body = on('suit40') ? 'suit40' : on('frj12') ? 'frj12' : on('frs8') ? 'frs8' : 'cotton'
   const rubber = PPE_ITEMS.find((p) => p.slot === 'hands' && p.shockOk && on(p.id))
 
   const worn: Region[] = []
   if (on('hardhat')) worn.push(...R.hat)
-  if (on('faceshield') || body === 'suit40') worn.push(...R.visor, ...R.hood)
+  if (on('hood40')) worn.push(...R.visor, ...R.hood)
   if (body !== 'cotton') worn.push(...R.jacket, ...R.pants)
   if (rubber) worn.push(...R.cuffs)
   if (rubber || on('gloves_leather')) worn.push(...R.gloves)
