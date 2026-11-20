@@ -74,14 +74,14 @@ export function RoomScene({ state, onProbe, dispatch, onLabel }: Props) {
     <svg viewBox="0 0 960 600" className="scene">
       <defs>
         <linearGradient id="rWall" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#eceee9" /><stop offset="1" stopColor="#cfd2cc" /></linearGradient>
-        <linearGradient id="rFloor" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#b9a98a" /><stop offset="1" stopColor="#8e8168" /></linearGradient>
+        <linearGradient id="rFloor" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#1f2124" /><stop offset="1" stopColor="#0a0b0c" /></linearGradient>
         <linearGradient id="rCab" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stopColor="#a9b0ae" /><stop offset="0.5" stopColor="#c3c9c6" /><stop offset="1" stopColor="#9aa19f" /></linearGradient>
         <linearGradient id="rCabDark" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stopColor="#8d9593" /><stop offset="0.5" stopColor="#aab1ae" /><stop offset="1" stopColor="#7f8785" /></linearGradient>
-        <pattern id="rPlate" width="12" height="12" patternUnits="userSpaceOnUse"><rect width="12" height="12" fill="url(#rFloor)" /><path d="M2 6 l3 -3 M6 10 l3 -3" stroke="#6f6550" strokeWidth="1.2" /></pattern>
+        <pattern id="rPlate" width="12" height="12" patternUnits="userSpaceOnUse"><rect width="12" height="12" fill="url(#rFloor)" /><path d="M2 6 l3 -3 M6 10 l3 -3" stroke="#33373b" strokeWidth="1.2" /></pattern>
       </defs>
       <rect width="960" height="470" fill="url(#rWall)" />
       <rect y="470" width="960" height="130" fill="url(#rPlate)" />
-      <line x1="0" y1="470" x2="960" y2="470" stroke="#5a5245" strokeWidth="3" />
+      <line x1="0" y1="470" x2="960" y2="470" stroke="#3a3d41" strokeWidth="3" />
 
       {/* ---------- Allen-Bradley CENTERLINE 2100, 480 V ---------- */}
       <g>
@@ -181,9 +181,9 @@ export function RoomScene({ state, onProbe, dispatch, onLabel }: Props) {
       )}
 
       {/* ---------- Toshiba JK series MV controller, 4160 V ---------- */}
-      <g>
-        <rect x="462" y="30" width="478" height="450" fill="url(#rCabDark)" stroke="#5e6563" strokeWidth="3" />
-        <rect x="462" y="30" width="478" height="26" fill="#3a4044" />
+      <g transform="translate(22 0)">
+        <rect x="462" y="30" width="456" height="450" fill="url(#rCabDark)" stroke="#5e6563" strokeWidth="3" />
+        <rect x="462" y="30" width="456" height="26" fill="#3a4044" />
         <text x="480" y="48" style={{ fontSize: 11, fontWeight: 900, fill: '#e03b3b', letterSpacing: 2 }}>TOSHIBA</text>
         <text x="560" y="47" style={{ fontSize: 6, fill: '#ddd' }}>MEDIUM VOLTAGE CONTROLLER</text>
         <text x="900" y="48" textAnchor="end" style={{ fontSize: 10, fontWeight: 800, fill: '#fff' }}>JK SERIES</text>
@@ -272,17 +272,29 @@ export function RoomScene({ state, onProbe, dispatch, onLabel }: Props) {
         <text x="834" y="455" textAnchor="middle" className="hint">prove the TIC here</text>
       </g>
 
-      {/* receptacle: known live source for the 789 */}
+      {/* GFCI receptacle on the wall between the lineups: known live 120 V source for the 789 */}
       <g>
-        <rect x="448" y="498" width="40" height="70" fill="#f1efe6" stroke="#777" rx="3" />
-        <text x="468" y="492" textAnchor="middle" className="hint">120 V recept.</text>
-        <TP state={s} id="RECEPT_H" x={460} y={518} onProbe={onProbe} />
-        <TP state={s} id="RECEPT_N" x={476} y={518} onProbe={onProbe} />
-        <TP state={s} id="RECEPT_G" x={468} y={546} onProbe={onProbe} />
+        <text x="462" y="218" textAnchor="middle" className="hint">120 V GFCI</text>
+        <rect x="443" y="226" width="38" height="64" rx="3" fill="#f3f1ea" stroke="#9a9a94" />
+        <rect x="449" y="231" width="26" height="54" rx="2" fill="#e9e7df" stroke="#b5b3ab" />
+        <circle cx="462" cy="229" r="1" fill="#777" /><circle cx="462" cy="287" r="1" fill="#777" />
+        {/* top outlet: neutral slot (wide) left, hot slot right, ground below */}
+        <rect x="452.5" y="236" width="2.2" height="7" fill="#222" /><rect x="468" y="237" width="1.8" height="6" fill="#222" />
+        <path d="M459.5 252 a2.5 2.5 0 0 1 5 0 v1.5 h-5 z" fill="#222" />
+        {/* RESET and TEST */}
+        <rect x="453" y="257" width="8" height="6" rx="1" fill="#2a2a2a" stroke="#111" /><text x="457" y="261.6" textAnchor="middle" style={{ fontSize: 2.6, fontWeight: 700, fill: '#fff' }}>RESET</text>
+        <rect x="463" y="257" width="8" height="6" rx="1" fill="#e4e4e0" stroke="#999" /><text x="467" y="261.6" textAnchor="middle" style={{ fontSize: 2.6, fontWeight: 700, fill: '#222' }}>TEST</text>
+        <circle cx="457" cy="266.5" r="1.2" fill="#3ddc84" />
+        {/* bottom outlet */}
+        <rect x="452.5" y="269" width="2.2" height="7" fill="#222" /><rect x="468" y="270" width="1.8" height="6" fill="#222" />
+        <path d="M459.5 282 a2.5 2.5 0 0 1 5 0 v1.5 h-5 z" fill="#222" />
+        <TP state={s} id="RECEPT_N" x={453} y={272} onProbe={onProbe} />
+        <TP state={s} id="RECEPT_H" x={469} y={272} onProbe={onProbe} />
+        <TP state={s} id="RECEPT_G" x={462} y={285} onProbe={onProbe} />
       </g>
 
       <Hotspot x={760} y={510} w={170} h={36} label="Walk to P-310 motor →" onClick={() => dispatch({ type: 'goto', scene: 'motor' })} />
-      <text x="40" y="520" className="scene-note">Arc flash boundary from the label is {s.scenario.label.arcFlashBoundary} in. Anyone inside it needs the PPE.</text>
+      <text x="40" y="520" className="scene-note" style={{ fill: '#d8dbdf' }}>Arc flash boundary from the label is {s.scenario.label.arcFlashBoundary} in. Anyone inside it needs the PPE.</text>
     </svg>
   )
 }
